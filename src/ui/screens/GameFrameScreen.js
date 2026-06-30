@@ -683,7 +683,7 @@ export class GameFrameScreen {
 
       if (image?.complete && image.naturalWidth > 0) {
         this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
-        this.#tintCurrentImage(-size / 2, -size / 2, size, size, RARITY_COLORS[tower.rarity], tower.rarity === "common" ? 0 : 0.48);
+        this.#drawTowerRarityFrame(-size / 2, -size / 2, size, size, RARITY_COLORS[tower.rarity], tower.rarity === "common" ? 0.18 : 0.86);
       } else {
         this.#ctx.strokeStyle = RARITY_COLORS[tower.rarity];
         this.#ctx.lineWidth = 3;
@@ -772,13 +772,36 @@ export class GameFrameScreen {
     this.#ctx.restore();
   }
 
-  #tintCurrentImage(x, y, width, height, color, alpha) {
+  #drawTowerRarityFrame(x, y, width, height, color, alpha) {
     if (alpha <= 0) return;
 
+    const inset = Math.max(3, CELL_SIZE * 0.12);
+
     this.#ctx.save();
-    this.#ctx.globalCompositeOperation = "source-atop";
-    this.#ctx.fillStyle = withAlpha(color, alpha);
-    this.#ctx.fillRect(x, y, width, height);
+    this.#ctx.globalCompositeOperation = "source-over";
+    this.#ctx.strokeStyle = withAlpha(color, alpha);
+    this.#ctx.lineWidth = Math.max(2, width * 0.045);
+    this.#ctx.shadowColor = color;
+    this.#ctx.shadowBlur = alpha >= 0.5 ? 10 : 0;
+    this.#ctx.strokeRect(x + inset, y + inset, width - inset * 2, height - inset * 2);
+    this.#ctx.restore();
+  }
+
+  #drawRaiderRarityMarker(size, color, alpha) {
+    if (alpha <= 0) return;
+
+    const radius = size * 0.38;
+    const y = size * 0.3;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "source-over";
+    this.#ctx.strokeStyle = withAlpha(color, alpha);
+    this.#ctx.lineWidth = Math.max(2, size * 0.06);
+    this.#ctx.shadowColor = color;
+    this.#ctx.shadowBlur = alpha >= 0.5 ? 9 : 0;
+    this.#ctx.beginPath();
+    this.#ctx.ellipse(0, y, radius, radius * 0.28, 0, 0, TAU);
+    this.#ctx.stroke();
     this.#ctx.restore();
   }
 
@@ -1402,7 +1425,7 @@ export class GameFrameScreen {
     this.#ctx.rotate(this.#getRaiderAngle(raider.progress));
     this.#ctx.globalCompositeOperation = "lighter";
     this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
-    this.#tintCurrentImage(-size / 2, -size / 2, size, size, getRaiderColor(raider.rarity), raider.rarity === "common" ? 0 : 0.5);
+    this.#drawRaiderRarityMarker(size, getRaiderColor(raider.rarity), raider.rarity === "common" ? 0.2 : 0.88);
     this.#ctx.restore();
   }
 
