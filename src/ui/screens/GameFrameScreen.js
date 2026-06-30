@@ -9,17 +9,21 @@ const CELL_SIZE = 32;
 const MIN_ZOOM = 0.38;
 const MAX_ZOOM = 2.4;
 const TAU = Math.PI * 2;
-const RARITY_ASSET_NAMES = Array.from(new Set([
-  ...Object.values(TOWER_DEFINITIONS).map((tower) => tower.asset),
-  ...Object.values(RAIDER_TYPES).flatMap((raider) => raider.frames)
-]));
+const TOWER_ASSET_NAMES = Array.from(new Set(Object.values(TOWER_DEFINITIONS).map((tower) => tower.asset)));
+const RAIDER_ASSET_NAMES = Array.from(new Set(Object.values(RAIDER_TYPES).flatMap((raider) => raider.frames)));
 const ASSET_SOURCES = {
-  tree: `${import.meta.env.BASE_URL}assets/tree.png`,
-  boulder: `${import.meta.env.BASE_URL}assets/boulder.png`,
-  ...Object.fromEntries(RARITY_ASSET_NAMES.flatMap((asset) => (
+  tree: `${import.meta.env.BASE_URL}assets/scenery/tree.png`,
+  boulder: `${import.meta.env.BASE_URL}assets/scenery/boulder.png`,
+  ...Object.fromEntries(TOWER_ASSET_NAMES.flatMap((asset) => (
     RARITIES.map((rarity) => {
       const key = getRarityAssetName(asset, rarity);
-      return [key, `${import.meta.env.BASE_URL}assets/${key}.png`];
+      return [key, `${import.meta.env.BASE_URL}assets/towers/${key}.png`];
+    })
+  ))),
+  ...Object.fromEntries(RAIDER_ASSET_NAMES.flatMap((asset) => (
+    RARITIES.map((rarity) => {
+      const key = getRarityAssetName(asset, rarity);
+      return [key, `${import.meta.env.BASE_URL}assets/raiders/${key}.png`];
     })
   )))
 };
@@ -27,6 +31,7 @@ const PLAYER_MAX_HEALTH = 100;
 const STARTING_RESOURCES = 10;
 const WAVE_COUNT = 100;
 const WAVE_SPAWN_INTERVAL = 0.45;
+const WAVE_SPAWN_SPACING_MULTIPLIER = 1.6;
 const RAIDER_SPAWN_INTERVALS = {
   walker: {
     common: 0.42,
@@ -36,15 +41,44 @@ const RAIDER_SPAWN_INTERVALS = {
     legendary: 0.96
   },
   car: {
-    common: 1.15
+    common: 1.15,
+    uncommon: 1.25,
+    rare: 1.35,
+    epic: 1.45,
+    legendary: 1.55
   },
   fastcar: {
-    common: 1.05
+    common: 1.05,
+    uncommon: 1.15,
+    rare: 1.25,
+    epic: 1.35,
+    legendary: 1.45
+  },
+  heavy_transport: {
+    common: 1.65,
+    uncommon: 1.75,
+    rare: 1.85,
+    epic: 1.95,
+    legendary: 2.05
   }
 };
 const GEM_DROP_CHANCE_PER_WAVE = 0.05;
 const MAX_TOWER_SHOTS_PER_UPDATE = 32;
 const RAIDER_BAR_REVEAL_MS = 2000;
+const RAYGUN_FREEZE_SPEED_MULTIPLIERS = {
+  common: 0.55,
+  uncommon: 0.5,
+  rare: 0.45,
+  epic: 0.4,
+  legendary: 0.25
+};
+const RAYGUN_FREEZE_DURATIONS = {
+  common: 5,
+  uncommon: 10,
+  rare: 15,
+  epic: 20,
+  legendary: 25
+};
 const WAVE_DEFINITIONS = {
   1: [{ type: "walker", rarity: "common", count: 10 }],
   2: [
@@ -70,7 +104,47 @@ const WAVE_DEFINITIONS = {
     { type: "walker", rarity: "rare", count: 20 },
     { type: "walker", rarity: "legendary", count: 3 }
   ],
-  10: [{ type: "car", rarity: "common", count: 6 }]
+  10: [{ type: "car", rarity: "common", count: 6 }],
+  11: [
+    { type: "car", rarity: "common", count: 10 },
+    { type: "walker", rarity: "legendary", count: 10 }
+  ],
+  12: [
+    { type: "walker", rarity: "legendary", count: 15 },
+    { type: "car", rarity: "uncommon", count: 5 }
+  ],
+  13: [{ type: "car", rarity: "rare", count: 5 }],
+  14: [
+    { type: "car", rarity: "epic", count: 3 },
+    { type: "fastcar", rarity: "common", count: 10 }
+  ],
+  15: [
+    { type: "car", rarity: "legendary", count: 1 },
+    { type: "fastcar", rarity: "common", count: 10 }
+  ],
+  16: [
+    { type: "walker", rarity: "legendary", count: 10 },
+    { type: "car", rarity: "legendary", count: 3 },
+    { type: "fastcar", rarity: "common", count: 5 }
+  ],
+  17: [
+    { type: "car", rarity: "legendary", count: 5 },
+    { type: "fastcar", rarity: "uncommon", count: 5 }
+  ],
+  18: [
+    { type: "car", rarity: "legendary", count: 10 },
+    { type: "walker", rarity: "legendary", count: 15 },
+    { type: "fastcar", rarity: "rare", count: 3 }
+  ],
+  19: [
+    { type: "car", rarity: "legendary", count: 20 },
+    { type: "walker", rarity: "legendary", count: 30 },
+    { type: "fastcar", rarity: "epic", count: 5 }
+  ],
+  20: [
+    { type: "heavy_transport", rarity: "uncommon", count: 6 },
+    { type: "walker", rarity: "common", count: 50 }
+  ]
 };
 
 export class GameFrameScreen {
@@ -391,7 +465,7 @@ export class GameFrameScreen {
   }
 
   #getSpawnInterval(type, rarity) {
-    return RAIDER_SPAWN_INTERVALS[type]?.[rarity] ?? WAVE_SPAWN_INTERVAL;
+    return (RAIDER_SPAWN_INTERVALS[type]?.[rarity] ?? WAVE_SPAWN_INTERVAL) * WAVE_SPAWN_SPACING_MULTIPLIER;
   }
 
   #generateMapFlavor() {
@@ -942,6 +1016,35 @@ export class GameFrameScreen {
     popup.classList.add("active");
   }
 
+  #refreshTowerPopupAffordability() {
+    if (!this.#element) return;
+    const popup = this.#element.querySelector("[data-tower-popup]");
+    if (!popup?.classList.contains("active")) return;
+
+    if (this.#selectedArea?.valid) {
+      const placementPanel = this.#element.querySelector("[data-placement-panel]");
+      placementPanel.querySelectorAll("[data-place-tower]").forEach((button) => {
+        const tower = TOWER_DEFINITIONS[button.dataset.placeTower];
+        if (!tower) return;
+        const unlocked = this.#saveService.isTowerUnlocked(tower.id, "common");
+        const cost = tower.rarities.common.placementCost;
+        button.disabled = !unlocked || this.#resources < cost;
+      });
+      return;
+    }
+
+    if (this.#selectedTower) {
+      const tower = this.#selectedTower;
+      const definition = TOWER_DEFINITIONS[tower.type];
+      const nextRarity = getNextRarity(tower.rarity);
+      const upgradeButton = this.#element.querySelector("[data-upgrade-tower]");
+      if (!definition || !upgradeButton || !nextRarity) return;
+      const unlocked = this.#saveService.isTowerUnlocked(tower.type, nextRarity);
+      const cost = definition.rarities[nextRarity].placementCost;
+      upgradeButton.disabled = !unlocked || this.#resources < cost;
+    }
+  }
+
   #openTowerPanel(tower) {
     const popup = this.#element.querySelector("[data-tower-popup]");
     const title = this.#element.querySelector("[data-tower-popup-title]");
@@ -1143,7 +1246,12 @@ export class GameFrameScreen {
     for (const raider of this.#raiders) {
       if (!raider.alive) continue;
 
-      raider.progress += (raider.speed / 100) * dt;
+      if (raider.frozenUntil && this.#time >= raider.frozenUntil) {
+        raider.frozenUntil = 0;
+        raider.freezeSpeedMultiplier = 1;
+      }
+
+      raider.progress += (getEffectiveRaiderSpeed(raider) / 100) * dt;
 
       if (raider.progress >= endProgress) {
         raider.alive = false;
@@ -1172,6 +1280,9 @@ export class GameFrameScreen {
         tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
         this.#addTowerShotEffects(tower, center, targetPosition);
         this.#damageRaider(target, stats.damage, tower);
+        if (tower.type === "raygun") {
+          this.#freezeRaider(target, tower.rarity);
+        }
         tower.cooldown += stats.attackInterval;
         shots++;
       }
@@ -1187,6 +1298,11 @@ export class GameFrameScreen {
   #findTowerTarget(tower) {
     const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
     const center = this.#getTowerCenter(tower);
+
+    if (tower.type === "raygun") {
+      return this.#findRaygunTarget(center, stats.rangeCells * CELL_SIZE);
+    }
+
     let best = null;
     let bestProgress = -Infinity;
 
@@ -1202,6 +1318,36 @@ export class GameFrameScreen {
     }
 
     return best;
+  }
+
+  #findRaygunTarget(center, range) {
+    let best = null;
+    let bestSpeed = -Infinity;
+    let bestProgress = -Infinity;
+
+    for (const raider of this.#raiders) {
+      if (!raider.alive || isRaiderFrozen(raider, this.#time)) continue;
+      const position = this.#getRoadPosition(raider.progress);
+      const distance = Math.hypot(position.x - center.x, position.y - center.y);
+      if (distance > range) continue;
+
+      const speed = getEffectiveRaiderSpeed(raider);
+      if (speed > bestSpeed || (speed === bestSpeed && raider.progress > bestProgress)) {
+        best = raider;
+        bestSpeed = speed;
+        bestProgress = raider.progress;
+      }
+    }
+
+    return best;
+  }
+
+  #freezeRaider(raider, rarity) {
+    if (!raider.alive || isRaiderFrozen(raider, this.#time)) return;
+
+    raider.freezeSpeedMultiplier = RAYGUN_FREEZE_SPEED_MULTIPLIERS[rarity] ?? RAYGUN_FREEZE_SPEED_MULTIPLIERS.common;
+    raider.frozenUntil = this.#time + (RAYGUN_FREEZE_DURATIONS[rarity] ?? RAYGUN_FREEZE_DURATIONS.common);
+    this.#revealRaiderBars(raider);
   }
 
   #damageRaider(raider, damage, tower = null) {
@@ -1242,7 +1388,7 @@ export class GameFrameScreen {
       to,
       color,
       startedAt: performance.now(),
-      duration: tower.type === "cannon" ? 120 : 75
+      duration: tower.type === "cannon" ? 120 : tower.type === "raygun" ? 155 : 75
     });
 
     if (tower.type === "cannon") {
@@ -1394,6 +1540,9 @@ export class GameFrameScreen {
     this.#ctx.translate(position.x, position.y);
     this.#ctx.rotate(this.#getRaiderAngle(raider.progress));
     this.#ctx.globalCompositeOperation = "lighter";
+    if (isRaiderFrozen(raider, this.#time)) {
+      this.#drawFreezeHalo(size);
+    }
     this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
     this.#ctx.restore();
   }
@@ -1401,6 +1550,9 @@ export class GameFrameScreen {
   #drawRaiderFallback(raider, position) {
     this.#ctx.save();
     this.#ctx.translate(position.x, position.y);
+    if (isRaiderFrozen(raider, this.#time)) {
+      this.#drawFreezeHalo(CELL_SIZE * 1.35);
+    }
     this.#ctx.strokeStyle = getRaiderColor(raider.rarity);
     this.#ctx.lineWidth = 2;
 
@@ -1424,6 +1576,23 @@ export class GameFrameScreen {
     this.#ctx.lineTo(-6, 18);
     this.#ctx.moveTo(0, 10);
     this.#ctx.lineTo(6, 18);
+    this.#ctx.stroke();
+    this.#ctx.restore();
+  }
+
+  #drawFreezeHalo(size) {
+    const radius = size * 0.42;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "source-over";
+    this.#ctx.fillStyle = "rgba(124, 226, 255, 0.18)";
+    this.#ctx.strokeStyle = "rgba(124, 226, 255, 0.72)";
+    this.#ctx.lineWidth = Math.max(2, size * 0.04);
+    this.#ctx.shadowColor = "rgba(124, 226, 255, 0.62)";
+    this.#ctx.shadowBlur = size * 0.18;
+    this.#ctx.beginPath();
+    this.#ctx.ellipse(0, size * 0.24, radius, radius * 0.28, 0, 0, TAU);
+    this.#ctx.fill();
     this.#ctx.stroke();
     this.#ctx.restore();
   }
@@ -1477,6 +1646,8 @@ export class GameFrameScreen {
     if (waveDisplay) {
       waveDisplay.textContent = this.#gameOver ? "Game Over" : `Wave ${this.#wave} / ${WAVE_COUNT}`;
     }
+
+    this.#refreshTowerPopupAffordability();
   }
 
   #drawFlavorElement(element) {
@@ -1787,6 +1958,14 @@ function getRaiderColor(rarity) {
 
 function getRarityAssetName(asset, rarity) {
   return `${asset}_${rarity}`;
+}
+
+function getEffectiveRaiderSpeed(raider) {
+  return raider.speed * (raider.freezeSpeedMultiplier || 1);
+}
+
+function isRaiderFrozen(raider, time) {
+  return (raider.frozenUntil || 0) > time;
 }
 
 function getShieldDamageMultiplier(towerType) {

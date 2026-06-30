@@ -31,7 +31,7 @@ export class TowersScreen {
                 const cost = tower.unlockCosts[rarity];
                 return `
                   <button class="tower-card rarity-${rarity}${unlocked ? " unlocked" : ""}" type="button" data-tower="${tower.id}" data-rarity="${rarity}">
-                    <img src="${import.meta.env.BASE_URL}assets/${tower.asset}_${rarity}.png" alt="" />
+                    <img src="${import.meta.env.BASE_URL}assets/towers/${tower.asset}_${rarity}.png" alt="" />
                     <span class="tower-card-title">${RARITY_LABELS[rarity]} ${tower.label}</span>
                     <span class="tower-card-cost">${unlocked ? "Unlocked" : `${cost} Coins`}</span>
                   </button>

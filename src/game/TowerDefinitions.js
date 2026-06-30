@@ -56,6 +56,26 @@ export const TOWER_DEFINITIONS = {
       epic: { placementCost: 160, rangeCells: 11, damage: 800, attackInterval: 2.4 },
       legendary: { placementCost: 320, rangeCells: 13, damage: 1600, attackInterval: 2.2 }
     }
+  },
+  raygun: {
+    id: "raygun",
+    label: "Raygun",
+    asset: "raygun",
+    footprint: 2,
+    unlockCosts: {
+      common: 100,
+      uncommon: 200,
+      rare: 400,
+      epic: 800,
+      legendary: 1600
+    },
+    rarities: {
+      common: { placementCost: 30, rangeCells: 3, damage: 10, attackInterval: 2.0 },
+      uncommon: { placementCost: 60, rangeCells: 4, damage: 20, attackInterval: 1.8 },
+      rare: { placementCost: 120, rangeCells: 5, damage: 30, attackInterval: 1.6 },
+      epic: { placementCost: 240, rangeCells: 6, damage: 40, attackInterval: 1.4 },
+      legendary: { placementCost: 480, rangeCells: 12, damage: 50, attackInterval: 1.0 }
+    }
   }
 };
 

@@ -174,6 +174,65 @@ export const RAIDER_TYPES = {
         damage: 64
       }
     }
+  },
+  heavy_transport: {
+    id: "heavy_transport",
+    label: "Heavy Transport",
+    frames: ["heavy_transport"],
+    frameDuration: 1,
+    assetScale: 2,
+    rarities: {
+      common: {
+        id: "common",
+        label: "Common",
+        tint: "none",
+        health: 500,
+        shield: 2000,
+        speed: 200,
+        resources: 8,
+        damage: 10
+      },
+      uncommon: {
+        id: "uncommon",
+        label: "Uncommon",
+        tint: "green",
+        health: 500,
+        shield: 4000,
+        speed: 200,
+        resources: 8,
+        damage: 20
+      },
+      rare: {
+        id: "rare",
+        label: "Rare",
+        tint: "blue",
+        health: 500,
+        shield: 8000,
+        speed: 200,
+        resources: 8,
+        damage: 30
+      },
+      epic: {
+        id: "epic",
+        label: "Epic",
+        tint: "purple",
+        health: 500,
+        shield: 16000,
+        speed: 200,
+        resources: 8,
+        damage: 40
+      },
+      legendary: {
+        id: "legendary",
+        label: "Legendary",
+        tint: "gold",
+        health: 500,
+        shield: 32000,
+        speed: 200,
+        resources: 8,
+        damage: 50
+      }
+    }
   }
 };
 

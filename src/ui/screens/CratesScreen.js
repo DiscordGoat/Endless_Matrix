@@ -57,7 +57,7 @@ export class CratesScreen {
               const count = save.crateInventory[crateId] || 0;
               return `
                 <button class="crate-card crate-${crateId}${this.#selectedCrate === crateId ? " selected" : ""}" type="button" data-crate="${crateId}" ${this.#opening ? "disabled" : ""}>
-                  <img src="${import.meta.env.BASE_URL}assets/${crate.asset}.png" alt="" />
+                  <img src="${import.meta.env.BASE_URL}assets/crates/${crate.asset}.png" alt="" />
                   <span>${crate.label}</span>
                   <small class="${count > 0 ? "has-count" : ""}">${count} Owned</small>
                 </button>
@@ -71,7 +71,7 @@ export class CratesScreen {
               ${this.#renderSlot(1, inlayGems[1])}
             </div>
             <div class="crate-focus">
-              <img src="${import.meta.env.BASE_URL}assets/${selected.asset}.png" alt="" />
+              <img src="${import.meta.env.BASE_URL}assets/crates/${selected.asset}.png" alt="" />
               <strong>${selected.label}</strong>
               <span>Loot ${lootValue}-${lootValue * 2}</span>
               <div class="crate-actions">
@@ -88,7 +88,7 @@ export class CratesScreen {
           <div class="gem-grid compact-gem-grid">
             ${sortedGems.map((gem) => `
               <button class="gem-card rarity-${gem.definition.rarity}" type="button" data-gem-index="${gem.index}" ${this.#opening || this.#inlayIndices.length >= SLOT_COUNT ? "disabled" : ""}>
-                <img src="${import.meta.env.BASE_URL}assets/${gem.definition.asset}.png" alt="" />
+                <img src="${import.meta.env.BASE_URL}assets/gems/${gem.definition.asset}.png" alt="" />
                 <span>${gem.definition.label}</span>
                 <small>+${gem.definition.sellValue}</small>
               </button>
@@ -117,7 +117,7 @@ export class CratesScreen {
     const gem = GEM_DEFINITIONS[gemId];
     return `
       <button class="crate-slot filled rarity-${gem.rarity}${this.#lastInlaySlot === slot ? " just-inlaid" : ""}" type="button" data-slot="${slot}">
-        <img src="${import.meta.env.BASE_URL}assets/${gem.asset}.png" alt="" />
+        <img src="${import.meta.env.BASE_URL}assets/gems/${gem.asset}.png" alt="" />
       </button>
     `;
   }

@@ -21,7 +21,8 @@ const DEFAULT_SAVE = {
   },
   towerUnlocks: {
     minigun: [],
-    cannon: []
+    cannon: [],
+    raygun: []
   }
 };
 
