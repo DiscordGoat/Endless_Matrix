@@ -895,8 +895,7 @@ h1 {
   transform: translateY(1px) scale(0.99);
 }
 
-.gameframe-back,
-.gameframe-restart {
+.gameframe-back {
   position: absolute;
   bottom: max(14px, env(safe-area-inset-bottom));
   min-width: 112px;
@@ -921,22 +920,15 @@ h1 {
   left: max(14px, env(safe-area-inset-left));
 }
 
-.gameframe-restart {
-  right: max(14px, env(safe-area-inset-right));
-}
-
 .gameframe-back:hover,
-.gameframe-back:focus-visible,
-.gameframe-restart:hover,
-.gameframe-restart:focus-visible {
+.gameframe-back:focus-visible {
   border-color: rgba(68, 255, 239, 0.9);
   background: rgba(68, 255, 239, 0.08);
   outline: none;
   transform: translateY(-1px);
 }
 
-.gameframe-back:active,
-.gameframe-restart:active {
+.gameframe-back:active {
   transform: translateY(1px) scale(0.99);
 }
 

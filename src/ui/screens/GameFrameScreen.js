@@ -179,7 +179,6 @@ export class GameFrameScreen {
         <button class="speed-button" type="button" data-speed="8">8x</button>
         <button class="speed-button" type="button" data-speed="16">16x</button>
       </div>
-      <button class="gameframe-restart" type="button" aria-label="Restart map">Restart</button>
       <button class="gameframe-back" type="button">Back</button>
       <section class="tower-popup" data-tower-popup>
         <div class="tower-popup-title" data-tower-popup-title>Tower</div>
@@ -201,10 +200,6 @@ export class GameFrameScreen {
 
     screen.querySelector(".time-toggle").addEventListener("click", () => {
       this.#toggleTime();
-    });
-
-    screen.querySelector(".gameframe-restart").addEventListener("click", () => {
-      this.#restartMap();
     });
 
     screen.querySelector(".gameframe-end").addEventListener("click", () => {
@@ -255,7 +250,7 @@ export class GameFrameScreen {
   #resize = () => {
     if (!this.#canvas || !this.#ctx) return;
 
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const dpr = Math.min(1.5, Math.max(1, window.devicePixelRatio || 1));
     const width = window.innerWidth;
     const height = window.innerHeight;
 
@@ -305,18 +300,6 @@ export class GameFrameScreen {
     const button = this.#element.querySelector(".time-toggle");
     button.dataset.running = String(this.#running);
     button.setAttribute("aria-label", this.#running ? "Pause time" : "Start time");
-  }
-
-  #restartMap() {
-    this.#rerollIndex++;
-    this.#time = 0;
-    this.#running = false;
-    this.#element.querySelector(".time-toggle").dataset.running = "false";
-    this.#element.querySelector(".time-toggle").setAttribute("aria-label", "Start time");
-    this.#gradientSeed = createGradientSeed();
-    this.#generateMapFlavor();
-    this.#resetRunState();
-    this.#draw();
   }
 
   #endGame(context) {
@@ -697,10 +680,10 @@ export class GameFrameScreen {
       this.#ctx.translate(center.x, center.y);
       this.#ctx.rotate(tower.angle);
       this.#ctx.globalCompositeOperation = "lighter";
-      this.#ctx.filter = getTowerFilter(tower.rarity);
 
       if (image?.complete && image.naturalWidth > 0) {
         this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
+        this.#tintCurrentImage(-size / 2, -size / 2, size, size, RARITY_COLORS[tower.rarity], tower.rarity === "common" ? 0 : 0.48);
       } else {
         this.#ctx.strokeStyle = RARITY_COLORS[tower.rarity];
         this.#ctx.lineWidth = 3;
@@ -711,7 +694,6 @@ export class GameFrameScreen {
         this.#ctx.stroke();
       }
 
-      this.#ctx.filter = "none";
       this.#ctx.restore();
 
       this.#ctx.save();
@@ -787,6 +769,16 @@ export class GameFrameScreen {
     this.#ctx.arc(effect.x, effect.y, radius, 0, TAU);
     this.#ctx.fill();
     this.#ctx.stroke();
+    this.#ctx.restore();
+  }
+
+  #tintCurrentImage(x, y, width, height, color, alpha) {
+    if (alpha <= 0) return;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "source-atop";
+    this.#ctx.fillStyle = withAlpha(color, alpha);
+    this.#ctx.fillRect(x, y, width, height);
     this.#ctx.restore();
   }
 
@@ -1409,9 +1401,8 @@ export class GameFrameScreen {
     this.#ctx.translate(position.x, position.y);
     this.#ctx.rotate(this.#getRaiderAngle(raider.progress));
     this.#ctx.globalCompositeOperation = "lighter";
-    this.#ctx.filter = getRaiderFilter(raider.rarity);
     this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
-    this.#ctx.filter = "none";
+    this.#tintCurrentImage(-size / 2, -size / 2, size, size, getRaiderColor(raider.rarity), raider.rarity === "common" ? 0 : 0.5);
     this.#ctx.restore();
   }
 
@@ -1794,14 +1785,6 @@ function getAssetRotation(element) {
   return element.rotation;
 }
 
-function getRaiderFilter(rarity) {
-  if (rarity === "common") return "none";
-  if (rarity === "uncommon") return "sepia(1) saturate(6) hue-rotate(55deg)";
-  if (rarity === "rare") return "sepia(1) saturate(5) hue-rotate(165deg)";
-  if (rarity === "epic") return "sepia(1) saturate(6) hue-rotate(235deg)";
-  return "sepia(1) saturate(6) hue-rotate(15deg)";
-}
-
 function getRaiderColor(rarity) {
   if (rarity === "uncommon") return "rgba(144, 222, 120, 0.9)";
   if (rarity === "rare") return "rgba(96, 172, 255, 0.9)";
@@ -1814,12 +1797,4 @@ function getShieldDamageMultiplier(towerType) {
   if (towerType === "minigun") return 0.5;
   if (towerType === "cannon") return 2;
   return 1;
-}
-
-function getTowerFilter(rarity) {
-  if (rarity === "common") return "none";
-  if (rarity === "uncommon") return "sepia(1) saturate(5) hue-rotate(55deg)";
-  if (rarity === "rare") return "sepia(1) saturate(5) hue-rotate(165deg)";
-  if (rarity === "epic") return "sepia(1) saturate(6) hue-rotate(235deg)";
-  return "sepia(1) saturate(6) hue-rotate(15deg)";
 }
