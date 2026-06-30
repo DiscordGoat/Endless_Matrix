@@ -2,22 +2,26 @@ import { RoadGenerator } from "../../game/RoadGenerator.js";
 import { getRandomCrate } from "../../game/CrateDefinitions.js";
 import { createRaider, RAIDER_TYPES } from "../../game/RaiderDefinitions.js";
 import { getRandomGem } from "../../game/GemDefinitions.js";
-import { getNextRarity, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
+import { getNextRarity, RARITIES, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
 
 const FIRST_TIER_GRID_SIZE = 50;
 const CELL_SIZE = 32;
 const MIN_ZOOM = 0.38;
 const MAX_ZOOM = 2.4;
 const TAU = Math.PI * 2;
+const RARITY_ASSET_NAMES = Array.from(new Set([
+  ...Object.values(TOWER_DEFINITIONS).map((tower) => tower.asset),
+  ...Object.values(RAIDER_TYPES).flatMap((raider) => raider.frames)
+]));
 const ASSET_SOURCES = {
   tree: `${import.meta.env.BASE_URL}assets/tree.png`,
   boulder: `${import.meta.env.BASE_URL}assets/boulder.png`,
-  minigun: `${import.meta.env.BASE_URL}assets/minigun.png`,
-  cannon: `${import.meta.env.BASE_URL}assets/cannon.png`,
-  walker_frame1: `${import.meta.env.BASE_URL}assets/walker_frame1.png`,
-  walker_frame2: `${import.meta.env.BASE_URL}assets/walker_frame2.png`,
-  car: `${import.meta.env.BASE_URL}assets/car.png`,
-  fastcar: `${import.meta.env.BASE_URL}assets/fastcar.png`
+  ...Object.fromEntries(RARITY_ASSET_NAMES.flatMap((asset) => (
+    RARITIES.map((rarity) => {
+      const key = getRarityAssetName(asset, rarity);
+      return [key, `${import.meta.env.BASE_URL}assets/${key}.png`];
+    })
+  )))
 };
 const PLAYER_MAX_HEALTH = 100;
 const STARTING_RESOURCES = 10;
@@ -673,7 +677,7 @@ export class GameFrameScreen {
     for (const tower of this.#towers) {
       const definition = TOWER_DEFINITIONS[tower.type];
       const center = this.#getTowerCenter(tower);
-      const image = this.#assets.get(definition.asset);
+      const image = this.#assets.get(getRarityAssetName(definition.asset, tower.rarity));
       const size = CELL_SIZE * 2.25;
 
       this.#ctx.save();
@@ -683,7 +687,6 @@ export class GameFrameScreen {
 
       if (image?.complete && image.naturalWidth > 0) {
         this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
-        this.#drawTowerRarityFrame(-size / 2, -size / 2, size, size, RARITY_COLORS[tower.rarity], tower.rarity === "common" ? 0.18 : 0.86);
       } else {
         this.#ctx.strokeStyle = RARITY_COLORS[tower.rarity];
         this.#ctx.lineWidth = 3;
@@ -768,39 +771,6 @@ export class GameFrameScreen {
     this.#ctx.beginPath();
     this.#ctx.arc(effect.x, effect.y, radius, 0, TAU);
     this.#ctx.fill();
-    this.#ctx.stroke();
-    this.#ctx.restore();
-  }
-
-  #drawTowerRarityFrame(x, y, width, height, color, alpha) {
-    if (alpha <= 0) return;
-
-    const inset = Math.max(3, CELL_SIZE * 0.12);
-
-    this.#ctx.save();
-    this.#ctx.globalCompositeOperation = "source-over";
-    this.#ctx.strokeStyle = withAlpha(color, alpha);
-    this.#ctx.lineWidth = Math.max(2, width * 0.045);
-    this.#ctx.shadowColor = color;
-    this.#ctx.shadowBlur = alpha >= 0.5 ? 10 : 0;
-    this.#ctx.strokeRect(x + inset, y + inset, width - inset * 2, height - inset * 2);
-    this.#ctx.restore();
-  }
-
-  #drawRaiderRarityMarker(size, color, alpha) {
-    if (alpha <= 0) return;
-
-    const radius = size * 0.38;
-    const y = size * 0.3;
-
-    this.#ctx.save();
-    this.#ctx.globalCompositeOperation = "source-over";
-    this.#ctx.strokeStyle = withAlpha(color, alpha);
-    this.#ctx.lineWidth = Math.max(2, size * 0.06);
-    this.#ctx.shadowColor = color;
-    this.#ctx.shadowBlur = alpha >= 0.5 ? 9 : 0;
-    this.#ctx.beginPath();
-    this.#ctx.ellipse(0, y, radius, radius * 0.28, 0, 0, TAU);
     this.#ctx.stroke();
     this.#ctx.restore();
   }
@@ -1325,7 +1295,7 @@ export class GameFrameScreen {
       const position = this.#getRoadPosition(raider.progress);
       const definition = RAIDER_TYPES[raider.type];
       const frameIndex = Math.floor(this.#time / definition.frameDuration) % definition.frames.length;
-      const image = this.#assets.get(definition.frames[frameIndex]);
+      const image = this.#assets.get(getRarityAssetName(definition.frames[frameIndex], raider.rarity));
 
       if (image?.complete && image.naturalWidth > 0) {
         this.#drawRaiderAsset(raider, image, position);
@@ -1425,7 +1395,6 @@ export class GameFrameScreen {
     this.#ctx.rotate(this.#getRaiderAngle(raider.progress));
     this.#ctx.globalCompositeOperation = "lighter";
     this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
-    this.#drawRaiderRarityMarker(size, getRaiderColor(raider.rarity), raider.rarity === "common" ? 0.2 : 0.88);
     this.#ctx.restore();
   }
 
@@ -1814,6 +1783,10 @@ function getRaiderColor(rarity) {
   if (rarity === "epic") return "rgba(177, 102, 255, 0.92)";
   if (rarity === "legendary") return "rgba(255, 182, 54, 0.94)";
   return "rgba(255, 255, 255, 0.9)";
+}
+
+function getRarityAssetName(asset, rarity) {
+  return `${asset}_${rarity}`;
 }
 
 function getShieldDamageMultiplier(towerType) {
