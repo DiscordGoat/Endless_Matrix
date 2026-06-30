@@ -104,46 +104,57 @@ const WAVE_DEFINITIONS = {
     { type: "walker", rarity: "rare", count: 20 },
     { type: "walker", rarity: "legendary", count: 3 }
   ],
-  10: [{ type: "car", rarity: "common", count: 6 }],
+  10: [
+    { type: "car", rarity: "common", count: 4 },
+    { type: "walker", rarity: "rare", count: 8 }
+  ],
   11: [
-    { type: "car", rarity: "common", count: 10 },
-    { type: "walker", rarity: "legendary", count: 10 }
+    { type: "car", rarity: "common", count: 6 },
+    { type: "walker", rarity: "epic", count: 5 }
   ],
   12: [
-    { type: "walker", rarity: "legendary", count: 15 },
-    { type: "car", rarity: "uncommon", count: 5 }
+    { type: "car", rarity: "uncommon", count: 4 },
+    { type: "walker", rarity: "rare", count: 10 }
   ],
-  13: [{ type: "car", rarity: "rare", count: 5 }],
+  13: [
+    { type: "car", rarity: "rare", count: 3 },
+    { type: "car", rarity: "uncommon", count: 2 }
+  ],
   14: [
-    { type: "car", rarity: "epic", count: 3 },
-    { type: "fastcar", rarity: "common", count: 10 }
+    { type: "car", rarity: "rare", count: 3 },
+    { type: "fastcar", rarity: "common", count: 8 }
   ],
   15: [
-    { type: "car", rarity: "legendary", count: 1 },
-    { type: "fastcar", rarity: "common", count: 10 }
+    { type: "car", rarity: "epic", count: 2 },
+    { type: "fastcar", rarity: "common", count: 8 },
+    { type: "walker", rarity: "epic", count: 4 }
   ],
   16: [
-    { type: "walker", rarity: "legendary", count: 10 },
-    { type: "car", rarity: "legendary", count: 3 },
-    { type: "fastcar", rarity: "common", count: 5 }
+    { type: "car", rarity: "legendary", count: 1 },
+    { type: "fastcar", rarity: "uncommon", count: 6 },
+    { type: "walker", rarity: "rare", count: 10 }
   ],
   17: [
-    { type: "car", rarity: "legendary", count: 5 },
-    { type: "fastcar", rarity: "uncommon", count: 5 }
+    { type: "car", rarity: "epic", count: 3 },
+    { type: "fastcar", rarity: "rare", count: 5 },
+    { type: "walker", rarity: "legendary", count: 5 }
   ],
   18: [
-    { type: "car", rarity: "legendary", count: 10 },
-    { type: "walker", rarity: "legendary", count: 15 },
-    { type: "fastcar", rarity: "rare", count: 3 }
+    { type: "car", rarity: "legendary", count: 2 },
+    { type: "fastcar", rarity: "rare", count: 6 },
+    { type: "walker", rarity: "epic", count: 8 }
   ],
   19: [
-    { type: "car", rarity: "legendary", count: 20 },
-    { type: "walker", rarity: "legendary", count: 30 },
-    { type: "fastcar", rarity: "epic", count: 5 }
+    { type: "car", rarity: "legendary", count: 1 },
+    { type: "car", rarity: "epic", count: 3 },
+    { type: "fastcar", rarity: "rare", count: 4 },
+    { type: "walker", rarity: "legendary", count: 10 }
   ],
   20: [
     { type: "heavy_transport", rarity: "uncommon", count: 6 },
-    { type: "walker", rarity: "common", count: 50 }
+    { type: "car", rarity: "rare", count: 3 },
+    { type: "fastcar", rarity: "rare", count: 6 },
+    { type: "walker", rarity: "legendary", count: 5 }
   ]
 };
 
@@ -154,6 +165,7 @@ export class GameFrameScreen {
   #canvas = null;
   #ctx = null;
   #animationFrame = null;
+  #needsDraw = true;
   #level = 1;
   #camera = {
     x: 0,
@@ -360,7 +372,10 @@ export class GameFrameScreen {
         this.#updateWave(scaledDt);
       }
 
-      this.#draw();
+      if (this.#running || this.#needsDraw || this.#effects.length > 0) {
+        this.#draw();
+      }
+
       this.#animationFrame = requestAnimationFrame(tick);
     };
 
@@ -378,6 +393,7 @@ export class GameFrameScreen {
     const button = this.#element.querySelector(".time-toggle");
     button.dataset.running = String(this.#running);
     button.setAttribute("aria-label", this.#running ? "Pause time" : "Start time");
+    this.#requestDraw();
   }
 
   #endGame(context) {
@@ -396,6 +412,7 @@ export class GameFrameScreen {
     this.#element.querySelectorAll(".speed-button").forEach((button) => {
       button.classList.toggle("active", Number(button.dataset.speed) === this.#gameSpeed);
     });
+    this.#requestDraw();
   }
 
   #resetRunState() {
@@ -518,6 +535,7 @@ export class GameFrameScreen {
       this.#camera.x += pointer.x - pointer.previousX;
       this.#camera.y += pointer.y - pointer.previousY;
       this.#clampCamera();
+      this.#requestDraw();
       return;
     }
 
@@ -529,6 +547,7 @@ export class GameFrameScreen {
       }
 
       this.#lastPinchDistance = distance;
+      this.#requestDraw();
     }
   };
 
@@ -542,6 +561,7 @@ export class GameFrameScreen {
 
     if (cleanTap) {
       this.#handleMapTap(event.clientX, event.clientY);
+      this.#requestDraw();
     }
   };
 
@@ -561,10 +581,12 @@ export class GameFrameScreen {
     this.#camera.x = clientX - worldX * nextScale;
     this.#camera.y = clientY - worldY * nextScale;
     this.#clampCamera();
+    this.#requestDraw();
   }
 
   #draw() {
     if (!this.#ctx) return;
+    this.#needsDraw = false;
 
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -1108,6 +1130,7 @@ export class GameFrameScreen {
     this.#selectedTower = tower;
     this.#closeTowerPopup();
     this.#syncRunHud();
+    this.#requestDraw();
   }
 
   #upgradeSelectedTower() {
@@ -1123,6 +1146,7 @@ export class GameFrameScreen {
     tower.spent += cost;
     this.#openTowerPanel(tower);
     this.#syncRunHud();
+    this.#requestDraw();
   }
 
   #recycleSelectedTower() {
@@ -1133,6 +1157,7 @@ export class GameFrameScreen {
     this.#towers = this.#towers.filter((item) => item !== tower);
     this.#clearSelection();
     this.#syncRunHud();
+    this.#requestDraw();
   }
 
   #getRecycleValue(tower) {
@@ -1176,6 +1201,7 @@ export class GameFrameScreen {
       const button = this.#element.querySelector(".time-toggle");
       button.dataset.running = "false";
       button.setAttribute("aria-label", "Start time");
+      this.#requestDraw();
     } else {
       this.#wave++;
       if (shouldContinue) {
@@ -1768,9 +1794,13 @@ export class GameFrameScreen {
     for (const [type, source] of Object.entries(ASSET_SOURCES)) {
       const image = new Image();
       image.src = source;
-      image.addEventListener("load", () => this.#draw());
+      image.addEventListener("load", () => this.#requestDraw());
       this.#assets.set(type, image);
     }
+  }
+
+  #requestDraw() {
+    this.#needsDraw = true;
   }
 
   #drawEdgeGradient(worldSize, time) {
