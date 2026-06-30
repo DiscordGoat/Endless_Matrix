@@ -10,8 +10,9 @@
     <div id="app"></div>
     <script type="module">
       const isLocalDev = ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+      const isViteBuild = Boolean(import.meta.env && import.meta.env.PROD);
 
-      if (isLocalDev) {
+      if (isLocalDev || isViteBuild) {
         import("/src/main.js");
       } else {
         window.location.replace(new URL("./dist/", window.location.href));
