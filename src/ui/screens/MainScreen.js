@@ -69,11 +69,15 @@ export class MainScreen {
       context.navigate("crates");
     });
 
+    screen.querySelector('[data-action="shop"]').addEventListener("click", () => {
+      context.navigate("shop");
+    });
+
     screen.querySelector('[data-action="back"]').addEventListener("click", () => {
       context.navigate("main-menu");
     });
 
-    screen.querySelectorAll(".hub-action:not([data-action='level-select']):not([data-action='towers']):not([data-action='gems']):not([data-action='crates']), [data-action='resume']").forEach((button) => {
+    screen.querySelectorAll(".hub-action:not([data-action='level-select']):not([data-action='towers']):not([data-action='gems']):not([data-action='crates']):not([data-action='shop']), [data-action='resume']").forEach((button) => {
       button.addEventListener("click", () => this.#pulse(button));
     });
 

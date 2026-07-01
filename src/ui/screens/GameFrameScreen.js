@@ -2,7 +2,9 @@ import { RoadGenerator } from "../../game/RoadGenerator.js";
 import { getRandomCrate } from "../../game/CrateDefinitions.js";
 import { createRaider, RAIDER_TYPES } from "../../game/RaiderDefinitions.js";
 import { getRandomGem } from "../../game/GemDefinitions.js";
+import { getCoinYieldMultiplier, getGemDropChance, getRaiderResourceMultiplier } from "../../game/PerkDefinitions.js";
 import { getNextRarity, RARITIES, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
+import { queueCoinReward, queueGemReward, queueTextReward } from "../RewardPopup.js";
 
 const FIRST_TIER_GRID_SIZE = 50;
 const CELL_SIZE = 32;
@@ -62,7 +64,6 @@ const RAIDER_SPAWN_INTERVALS = {
     legendary: 2.05
   }
 };
-const GEM_DROP_CHANCE_PER_WAVE = 0.05;
 const MAX_TOWER_SHOTS_PER_UPDATE = 32;
 const RAIDER_BAR_REVEAL_MS = 2000;
 const RAYGUN_FREEZE_SPEED_MULTIPLIERS = {
@@ -210,7 +211,6 @@ export class GameFrameScreen {
   #runGems = [];
   #runCrates = [];
   #runSettled = false;
-  #rewardMessageDelay = 0;
   #tap = {
     active: false,
     startX: 0,
@@ -253,13 +253,12 @@ export class GameFrameScreen {
           <button class="gameframe-end" type="button">End Game</button>
         </div>
         <div class="player-stat-strip">
-          <div class="run-pill" data-resource-display>${this.#resources}R</div>
+          <div class="run-pill" data-resource-display>${Math.floor(this.#resources)}R</div>
           <div class="run-pill" data-run-coin-display>+${this.#runCoins} Coins</div>
           <div class="run-pill" data-run-gem-display>+${this.#runGems.length} Gems</div>
           <div class="run-pill" data-run-crate-display>+${this.#runCrates.length} Crates</div>
         </div>
       </header>
-      <div class="reward-layer" data-reward-layer></div>
       <button class="time-toggle" type="button" aria-label="Start time" data-running="false">
         <span class="time-icon" aria-hidden="true"></span>
       </button>
@@ -422,7 +421,6 @@ export class GameFrameScreen {
     this.#runGems = [];
     this.#runCrates = [];
     this.#runSettled = false;
-    this.#rewardMessageDelay = 0;
     this.#wave = 1;
     this.#waveStarted = false;
     this.#spawning = false;
@@ -1078,7 +1076,7 @@ export class GameFrameScreen {
     const definition = TOWER_DEFINITIONS[tower.type];
 
     title.textContent = `${RARITY_LABELS[tower.rarity]} ${definition.label}`;
-    recycleButton.textContent = `Recycle +${this.#getRecycleValue(tower)}R`;
+    recycleButton.textContent = `Recycle +${Math.floor(this.#getRecycleValue(tower))}R`;
 
     if (!nextRarity) {
       upgradeButton.textContent = "Max Tier";
@@ -1161,7 +1159,7 @@ export class GameFrameScreen {
   }
 
   #getRecycleValue(tower) {
-    return Math.floor(tower.spent * 0.5);
+    return tower.spent * 0.5;
   }
 
   #updateWave(dt) {
@@ -1211,21 +1209,28 @@ export class GameFrameScreen {
   }
 
   #grantWaveRewards(wave) {
+    const perks = this.#saveService.getSnapshot().perks;
+
     if (wave % 5 === 0) {
-      this.#runCoins += 10;
-      this.#showRewardText("+10 Coins!");
+      const coins = Math.round(10 * getCoinYieldMultiplier(perks));
+      this.#runCoins += coins;
+      queueCoinReward(coins);
     }
 
-    if (Math.random() < GEM_DROP_CHANCE_PER_WAVE) {
+    if (Math.random() < getGemDropChance(perks)) {
       const gemId = getRandomGem();
       this.#runGems.push(gemId);
-      this.#showRewardText("+1 Gem!");
+      queueGemReward(gemId);
     }
 
     if (wave % 20 === 0) {
       const crateId = getRandomCrate();
       this.#runCrates.push(crateId);
-      this.#showRewardText(`+1 ${crateId} crate!`);
+      queueTextReward({
+        kicker: "Crate Found",
+        value: `+1 ${crateId} crate`,
+        tone: "crate"
+      });
     }
   }
 
@@ -1236,26 +1241,6 @@ export class GameFrameScreen {
     this.#saveService.addGems(this.#runGems);
     this.#saveService.addCrates(this.#runCrates);
     this.#runSettled = true;
-  }
-
-  #showRewardText(text) {
-    const layer = this.#element?.querySelector("[data-reward-layer]");
-    if (!layer) return;
-
-    const item = document.createElement("div");
-    item.className = "reward-float";
-    item.textContent = text;
-    const delay = this.#rewardMessageDelay;
-    this.#rewardMessageDelay += 220;
-
-    window.setTimeout(() => {
-      if (!this.#element || !layer.isConnected) return;
-      layer.append(item);
-      item.addEventListener("animationend", () => {
-        item.remove();
-        if (!layer.children.length) this.#rewardMessageDelay = 0;
-      }, { once: true });
-    }, delay);
   }
 
   #spawnRaider(type, rarity) {
@@ -1394,7 +1379,7 @@ export class GameFrameScreen {
     if (raider.health <= 0) {
       this.#addRaiderExplosion(raider);
       raider.alive = false;
-      this.#resources += raider.resources;
+      this.#resources += raider.resources * getRaiderResourceMultiplier(this.#saveService.getSnapshot().perks);
     }
   }
 
@@ -1654,7 +1639,7 @@ export class GameFrameScreen {
     const waveDisplay = this.#element.querySelector("[data-wave-display]");
 
     if (resourceDisplay) {
-      resourceDisplay.textContent = `${this.#resources}R`;
+      resourceDisplay.textContent = `${Math.floor(this.#resources)}R`;
     }
 
     if (runCoinDisplay) {

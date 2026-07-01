@@ -80,6 +80,125 @@ button {
   animation: gridDrift 18s linear infinite;
 }
 
+.test-reward-popup {
+  position: fixed;
+  left: 50vw;
+  top: 50svh;
+  width: min(300px, calc(100vw - 40px));
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.96);
+  pointer-events: none;
+  text-align: center;
+  text-transform: uppercase;
+  transform: translate(-50%, calc(-50% + 72px + var(--reward-offset, 0px))) scale(0.72);
+  opacity: 0;
+  z-index: 2147483647;
+  animation: testRewardEnter 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.test-reward-popup.is-leaving {
+  animation: testRewardExit 720ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+}
+
+.test-reward-burst {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, color-mix(in srgb, currentColor 46%, transparent) 0%, color-mix(in srgb, currentColor 22%, transparent) 34%, transparent 70%);
+  filter: blur(5px);
+  animation: testRewardBurst 1400ms ease-out infinite;
+}
+
+.test-reward-popup::before,
+.test-reward-popup::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  transform: rotate(45deg);
+  filter: drop-shadow(0 0 10px currentColor);
+}
+
+.test-reward-popup::before {
+  left: 36px;
+  top: 42px;
+}
+
+.test-reward-popup::after {
+  right: 40px;
+  bottom: 40px;
+}
+
+.test-reward-popup img {
+  position: relative;
+  width: 118px;
+  height: 118px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 18px currentColor)
+    drop-shadow(0 0 40px currentColor);
+  animation: testRewardGemFloat 1100ms ease-in-out infinite alternate;
+}
+
+.test-reward-kicker,
+.test-reward-name,
+.test-reward-coin-value {
+  position: relative;
+  z-index: 1;
+  font-weight: 950;
+  text-shadow:
+    0 0 14px currentColor,
+    0 0 30px rgba(255, 255, 255, 0.34);
+}
+
+.test-reward-kicker {
+  color: rgba(255, 255, 255, 0.96);
+  font-size: clamp(1rem, 4.6vw, 1.7rem);
+  letter-spacing: 0.1em;
+}
+
+.test-reward-name {
+  font-size: clamp(0.72rem, 3vw, 0.95rem);
+  letter-spacing: 0.1em;
+}
+
+.test-reward-coin-value {
+  color: var(--tone-gold);
+  font-size: clamp(2.1rem, 10vw, 4rem);
+  line-height: 1;
+  letter-spacing: 0.03em;
+}
+
+.test-reward-coin {
+  color: var(--tone-gold);
+}
+
+.test-reward-crate {
+  color: var(--tone-orange);
+}
+
+.test-reward-default {
+  color: var(--accent);
+}
+
+.test-reward-gem.rarity-common { color: var(--level-white); }
+.test-reward-gem.rarity-uncommon { color: var(--level-green); }
+.test-reward-gem.rarity-rare { color: var(--level-blue); }
+.test-reward-gem.rarity-epic { color: var(--level-purple); }
+.test-reward-gem.rarity-legendary { color: var(--level-gold); }
+
+.test-reward-perk.rarity-common { color: var(--level-white); }
+.test-reward-perk.rarity-uncommon { color: var(--level-green); }
+.test-reward-perk.rarity-rare { color: var(--level-blue); }
+.test-reward-perk.rarity-epic { color: var(--level-purple); }
+.test-reward-perk.rarity-legendary { color: var(--level-gold); }
+
 .main-menu-shell,
 .game-shell {
   position: relative;
@@ -453,10 +572,21 @@ h1 {
   cursor: wait;
 }
 
+.tower-card.maxed:disabled {
+  cursor: default;
+}
+
 .tower-card.unlocked {
   background:
     linear-gradient(180deg, rgba(68, 255, 239, 0.14), transparent),
     rgba(68, 255, 239, 0.035);
+}
+
+.tower-card.maxed {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, currentColor 18%, transparent), transparent),
+    rgba(255, 255, 255, 0.018);
+  opacity: 0.86;
 }
 
 .tower-card-title,
@@ -560,6 +690,251 @@ h1 {
 .gem-card.rarity-rare { color: var(--level-blue); }
 .gem-card.rarity-epic { color: var(--level-purple); }
 .gem-card.rarity-legendary { color: var(--level-gold); }
+
+.shop-shell {
+  width: min(100%, 760px);
+  height: min(760px, calc(100svh - 40px));
+  min-height: 0;
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+}
+
+.shop-screen {
+  overflow: hidden;
+}
+
+.shop-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  column-gap: 8px;
+  row-gap: 22px;
+  padding-bottom: 8px;
+}
+
+.shop-cell {
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(43, 46, 52, 0.72);
+}
+
+.shop-perk-cell {
+  padding: 9px;
+  color: var(--level-white);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-color: currentColor;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, currentColor 14%, transparent), transparent),
+    rgba(255, 255, 255, 0.018);
+  box-shadow: 0 0 18px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.shop-perk-cell img {
+  width: min(74%, 72px);
+  height: min(74%, 72px);
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 10px currentColor)
+    drop-shadow(0 0 22px color-mix(in srgb, currentColor 54%, transparent));
+}
+
+.shop-perk-cell:hover,
+.shop-perk-cell:focus-visible {
+  outline: none;
+  filter: brightness(1.18);
+  transform: translateY(-1px);
+}
+
+.shop-perk-slot {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(18px, auto);
+  gap: 5px;
+}
+
+.shop-perk-locked,
+.shop-perk-locked:disabled {
+  color: rgba(180, 188, 202, 0.44);
+  cursor: default;
+  filter: none;
+  transform: none;
+}
+
+.shop-perk-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-weight: 950;
+  font-size: clamp(0.48rem, 1.7vw, 0.7rem);
+  line-height: 1.05;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px color-mix(in srgb, currentColor 36%, transparent);
+}
+
+.shop-perk-cell.rarity-common,
+.shop-perk-name.rarity-common,
+.perk-detail-panel.rarity-common,
+.perk-state.rarity-common { color: var(--level-white); }
+
+.shop-perk-cell.rarity-uncommon,
+.shop-perk-name.rarity-uncommon,
+.perk-detail-panel.rarity-uncommon,
+.perk-state.rarity-uncommon { color: var(--level-green); }
+
+.shop-perk-cell.rarity-rare,
+.shop-perk-name.rarity-rare,
+.perk-detail-panel.rarity-rare,
+.perk-state.rarity-rare { color: var(--level-blue); }
+
+.shop-perk-cell.rarity-epic,
+.shop-perk-name.rarity-epic,
+.perk-detail-panel.rarity-epic,
+.perk-state.rarity-epic { color: var(--level-purple); }
+
+.shop-perk-cell.rarity-legendary,
+.shop-perk-name.rarity-legendary,
+.perk-detail-panel.rarity-legendary,
+.perk-state.rarity-legendary { color: var(--level-gold); }
+
+.perk-detail-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: rgba(2, 5, 10, 0.9);
+}
+
+.perk-detail-panel {
+  width: min(100%, 620px);
+  min-height: min(620px, calc(100svh - 36px));
+  border: 1px solid currentColor;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, currentColor 12%, transparent), transparent 46%),
+    rgba(9, 13, 20, 0.94);
+  box-shadow: 0 0 54px color-mix(in srgb, currentColor 18%, transparent);
+  padding: clamp(18px, 5vw, 32px);
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 18px;
+}
+
+.perk-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.perk-detail-header h2 {
+  margin: 0;
+  color: currentColor;
+  font-size: clamp(1.4rem, 8vw, 3rem);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.perk-detail-exit {
+  min-width: 82px;
+  min-height: 48px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.018);
+  color: currentColor;
+  cursor: pointer;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.perk-detail-icon {
+  width: min(178px, 42vw);
+  aspect-ratio: 1;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  color: currentColor;
+}
+
+.perk-detail-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 16px currentColor)
+    drop-shadow(0 0 34px color-mix(in srgb, currentColor 48%, transparent));
+}
+
+.perk-comparison {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.perk-state {
+  min-height: 120px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.018);
+  padding: 12px;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.perk-state span,
+.perk-state strong,
+.perk-detail-copy {
+  text-transform: uppercase;
+}
+
+.perk-state span {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.perk-state strong {
+  color: currentColor;
+  font-size: clamp(0.76rem, 3vw, 1rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.perk-arrow {
+  align-self: center;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 950;
+}
+
+.perk-detail-copy {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: clamp(0.8rem, 3vw, 1rem);
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+}
+
+.perk-detail-copy p {
+  margin: 0;
+}
 
 .crate-grid {
   display: grid;
@@ -806,34 +1181,6 @@ h1 {
   display: grid;
   gap: 10px;
   pointer-events: none;
-}
-
-.reward-layer {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  pointer-events: none;
-  z-index: 20;
-}
-
-.reward-float {
-  max-width: min(360px, calc(100vw - 32px));
-  border: 1px solid rgba(68, 255, 239, 0.72);
-  background: rgba(2, 5, 10, 0.78);
-  color: rgba(224, 252, 255, 0.98);
-  padding: 14px 22px;
-  font-size: clamp(1.1rem, 5vw, 1.8rem);
-  font-weight: 950;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: center;
-  text-shadow: 0 0 18px rgba(68, 255, 239, 0.62);
-  box-shadow: 0 0 32px rgba(68, 255, 239, 0.22);
-  animation: rewardFloat 1200ms ease-out forwards;
 }
 
 .run-status-strip,
@@ -1116,20 +1463,55 @@ h1 {
   }
 }
 
-@keyframes rewardFloat {
+@keyframes testRewardEnter {
   0% {
     opacity: 0;
-    transform: translateY(18px) scale(0.92);
+    transform: translate(-50%, calc(-50% + 72px + var(--reward-offset, 0px))) scale(0.72);
   }
 
-  18% {
+  72% {
     opacity: 1;
-    transform: translateY(0) scale(1.04);
+    transform: translate(-50%, calc(-50% + var(--reward-offset, 0px))) scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(-50%, calc(-50% + var(--reward-offset, 0px))) scale(1);
+  }
+}
+
+@keyframes testRewardExit {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, calc(-50% + var(--reward-offset, 0px))) scale(1);
   }
 
   100% {
     opacity: 0;
-    transform: translateY(-42px) scale(1);
+    transform: translate(-50%, -130svh) scale(0.92);
+  }
+}
+
+@keyframes testRewardBurst {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.86) rotate(0deg);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08) rotate(35deg);
+  }
+}
+
+@keyframes testRewardGemFloat {
+  from {
+    transform: translateY(0) rotate(-2deg) scale(1);
+  }
+
+  to {
+    transform: translateY(-7px) rotate(2deg) scale(1.04);
   }
 }
 

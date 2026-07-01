@@ -3,6 +3,7 @@ import { RARITIES, RARITY_LABELS, TOWER_DEFINITIONS } from "../../game/TowerDefi
 export class TowersScreen {
   #saveService;
   #element = null;
+  #context = null;
   #coinAnimation = null;
 
   constructor({ saveService }) {
@@ -10,7 +11,13 @@ export class TowersScreen {
   }
 
   mount(context) {
+    this.#context = context;
     const save = this.#saveService.getSnapshot();
+    const towerCards = Object.values(TOWER_DEFINITIONS)
+      .map((tower) => ({ tower, nextRarity: this.#getNextPurchasableRarity(tower.id, save) }))
+      .sort((a, b) => Number(!a.nextRarity) - Number(!b.nextRarity))
+      .map((item) => this.#renderTowerCard(item.tower, item.nextRarity))
+      .join("");
     const screen = document.createElement("main");
     screen.className = "screen towers-screen";
     screen.setAttribute("aria-label", "Towers");
@@ -25,19 +32,7 @@ export class TowersScreen {
 
         <div class="tower-scroll" tabindex="0">
           <div class="tower-grid">
-            ${Object.values(TOWER_DEFINITIONS).flatMap((tower) => (
-              RARITIES.map((rarity) => {
-                const unlocked = this.#saveService.isTowerUnlocked(tower.id, rarity);
-                const cost = tower.unlockCosts[rarity];
-                return `
-                  <button class="tower-card rarity-${rarity}${unlocked ? " unlocked" : ""}" type="button" data-tower="${tower.id}" data-rarity="${rarity}">
-                    <img src="${import.meta.env.BASE_URL}assets/towers/${tower.asset}_${rarity}.png" alt="" />
-                    <span class="tower-card-title">${RARITY_LABELS[rarity]} ${tower.label}</span>
-                    <span class="tower-card-cost">${unlocked ? "Unlocked" : `${cost} Coins`}</span>
-                  </button>
-                `;
-              })
-            )).join("")}
+            ${towerCards}
           </div>
         </div>
 
@@ -65,6 +60,7 @@ export class TowersScreen {
     }
 
     this.#element = null;
+    this.#context = null;
   }
 
   #handlePurchase(button) {
@@ -106,15 +102,38 @@ export class TowersScreen {
 
       this.#saveService.spendCoins(cost);
       this.#saveService.unlockTower(towerId, rarity);
+      this.#coinAnimation = null;
       readout.textContent = `${this.#saveService.getSnapshot().coins} Coins`;
       readout.style.transform = "";
-      button.classList.add("unlocked");
-      button.disabled = false;
-      button.querySelector(".tower-card-cost").textContent = "Unlocked";
       this.#flashCard(button);
+      window.setTimeout(() => {
+        if (!this.#element || !this.#context) return;
+        const currentElement = this.#element;
+        const nextElement = this.mount(this.#context);
+        currentElement.replaceWith(nextElement);
+      }, 420);
     };
 
     this.#coinAnimation = requestAnimationFrame(tick);
+  }
+
+  #renderTowerCard(tower, nextRarity) {
+    const displayRarity = nextRarity || RARITIES[RARITIES.length - 1];
+    const cost = nextRarity ? tower.unlockCosts[nextRarity] : null;
+
+    return `
+      <button class="tower-card rarity-${displayRarity}${nextRarity ? "" : " maxed"}" type="button" data-tower="${tower.id}" data-rarity="${displayRarity}" ${nextRarity ? "" : "disabled"}>
+        <img src="${import.meta.env.BASE_URL}assets/towers/${tower.asset}_${displayRarity}.png" alt="" />
+        <span class="tower-card-title">${nextRarity ? `${RARITY_LABELS[nextRarity]} ${tower.label}` : tower.label}</span>
+        <span class="tower-card-cost">${nextRarity ? `${cost} Coins` : "Max Level"}</span>
+      </button>
+    `;
+  }
+
+  #getNextPurchasableRarity(towerId, save) {
+    const owned = save.towerUnlocks[towerId] || [];
+    const highestOwnedIndex = owned.reduce((highest, rarity) => Math.max(highest, RARITIES.indexOf(rarity)), -1);
+    return RARITIES[highestOwnedIndex + 1] || null;
   }
 
   #flashCoins(success) {

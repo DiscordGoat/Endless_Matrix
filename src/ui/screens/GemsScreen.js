@@ -85,7 +85,7 @@ export class GemsScreen {
   #runSellAnimation({ context, button, index, value }) {
     const readout = this.#element.querySelector("[data-coin-readout]");
     const startCoins = this.#saveService.getSnapshot().coins;
-    const duration = 2000;
+    const duration = 500;
     const startedAt = performance.now();
     this.#selling = true;
     this.#lastSale = null;

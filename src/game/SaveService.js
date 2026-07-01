@@ -1,24 +1,25 @@
-import { GEM_ORDER, STARTER_GEMS } from "./GemDefinitions.js";
+import { RARITIES } from "./TowerDefinitions.js";
+import { createDefaultPerks, PERK_DEFINITIONS } from "./PerkDefinitions.js";
 
 const STORAGE_KEY = "endlessMatrixSaveV1";
-const FOUR_EACH_GEM_GRANT = GEM_ORDER.flatMap((gemId) => Array.from({ length: 4 }, () => gemId));
 
 const DEFAULT_SAVE = {
   tier: "I",
   coins: 100,
-  gems: STARTER_GEMS.length,
-  crates: 30,
+  gems: 0,
+  crates: 0,
   highestUnlockedLevel: 1,
   starterCoinsGranted: true,
   starterGemsGranted: true,
   starterCratesGranted: true,
-  fourEachGemGrant20260629: false,
-  gemInventory: STARTER_GEMS,
+  fourEachGemGrant20260629: true,
+  gemInventory: [],
   crateInventory: {
-    bronze: 10,
-    silver: 10,
-    gold: 10
+    bronze: 0,
+    silver: 0,
+    gold: 0
   },
+  perks: createDefaultPerks(),
   towerUnlocks: {
     minigun: [],
     cannon: [],
@@ -59,7 +60,13 @@ export class SaveService {
   }
 
   isTowerUnlocked(towerId, rarity) {
-    return Boolean(this.#save.towerUnlocks[towerId]?.includes(rarity));
+    const requestedIndex = RARITIES.indexOf(rarity);
+    if (requestedIndex < 0) return false;
+
+    return Boolean(this.#save.towerUnlocks[towerId]?.some((ownedRarity) => {
+      const ownedIndex = RARITIES.indexOf(ownedRarity);
+      return ownedIndex >= requestedIndex;
+    }));
   }
 
   addCoins(amount) {
@@ -123,6 +130,22 @@ export class SaveService {
     this.#persist();
   }
 
+  upgradePerk(perkId) {
+    const definition = PERK_DEFINITIONS[perkId];
+    if (!definition || definition.locked) return false;
+
+    const currentLevel = this.#save.perks[perkId] || 0;
+    const nextLevel = currentLevel + 1;
+    if (nextLevel > definition.maxLevel) return false;
+
+    const cost = definition.costForLevel(nextLevel);
+    if (!this.spendCoins(cost)) return false;
+
+    this.#save.perks[perkId] = nextLevel;
+    this.#persist();
+    return true;
+  }
+
   #load() {
     try {
       const found = localStorage.getItem(STORAGE_KEY);
@@ -152,6 +175,10 @@ function normalizeSave(save) {
       ...DEFAULT_SAVE.towerUnlocks,
       ...(save.towerUnlocks || {})
     },
+    perks: {
+      ...DEFAULT_SAVE.perks,
+      ...(save.perks || {})
+    },
     gemInventory: [...(save.gemInventory || DEFAULT_SAVE.gemInventory)],
     crateInventory: {
       ...DEFAULT_SAVE.crateInventory,
@@ -166,23 +193,16 @@ function normalizeSave(save) {
   }
 
   if (!save.starterGemsGranted) {
-    normalized.gemInventory = [...STARTER_GEMS, ...(save.gemInventory || [])];
     normalized.starterGemsGranted = true;
     changed = true;
   }
 
   if (!save.starterCratesGranted) {
-    normalized.crateInventory = {
-      bronze: (normalized.crateInventory?.bronze || 0) + 10,
-      silver: (normalized.crateInventory?.silver || 0) + 10,
-      gold: (normalized.crateInventory?.gold || 0) + 10
-    };
     normalized.starterCratesGranted = true;
     changed = true;
   }
 
   if (!save.fourEachGemGrant20260629) {
-    normalized.gemInventory = [...normalized.gemInventory, ...FOUR_EACH_GEM_GRANT];
     normalized.fourEachGemGrant20260629 = true;
     changed = true;
   }
