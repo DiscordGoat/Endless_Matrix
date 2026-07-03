@@ -1,6 +1,9 @@
 export const SHOP_CELL_COUNT = 100;
 export const SHOP_COLUMN_COUNT = 6;
-export const BASE_GEM_DROP_CHANCE = 0.05;
+export const BASE_COIN_DROP_CHANCE = 0.25;
+export const BASE_GEM_DROP_CHANCE = 0.01;
+export const BASE_CRATE_DROP_CHANCE = 0.01;
+export const BASE_RAIDER_RESOURCE_MULTIPLIER = 1.5;
 
 export const PERK_DEFINITIONS = {
   gemseeker: {
@@ -9,10 +12,10 @@ export const PERK_DEFINITIONS = {
     icon: "gemseeker",
     maxLevel: 10,
     cell: 0,
-    bonusPerLevel: 0.01,
+    bonusPerLevel: 0.005,
     costForLevel: (level) => level * 100,
-    getDescription: (level) => `Increase Gem Chance by ${level}%`,
-    getShortBonus: (level) => `+${level}% Gem Chance`
+    getDescription: (level) => `Increase Gem Chance by ${formatDecimalPercent(level * 0.005)}`,
+    getShortBonus: (level) => `+${formatDecimalPercent(level * 0.005)} Gem Chance`
   },
   gilded: {
     id: "gilded",
@@ -25,22 +28,22 @@ export const PERK_DEFINITIONS = {
     getDescription: (level) => `Increase Coin Yield by ${level * 10}%`,
     getShortBonus: (level) => `+${level * 10}% Coin Yield`
   },
-  looting: {
-    id: "looting",
-    label: "Looting",
-    icon: "Looting",
+  cratehoarder: {
+    id: "cratehoarder",
+    label: "Crate Hoarder",
+    icon: "crate_hoarder",
     maxLevel: 5,
     cell: 2,
-    bonusPerLevel: 0.1,
+    bonusPerLevel: 0.002,
     costForLevel: (level) => level * 200,
-    getDescription: (level) => `Increase Raider Resources by ${level * 10}%`,
-    getShortBonus: (level) => `+${level * 10}% Raider Resources`
+    getDescription: (level) => `Increase Crate Chance by ${formatDecimalPercent(level * 0.002)}`,
+    getShortBonus: (level) => `+${formatDecimalPercent(level * 0.002)} Crate Chance`
   },
   reserved: {
     id: "reserved",
     label: "Locked Perk",
     maxLevel: 0,
-    cell: 3,
+    cell: 4,
     locked: true,
     getDescription: () => "Empty perk slot",
     getShortBonus: () => "Coming Soon"
@@ -75,18 +78,23 @@ export function getGemDropChance(perks = {}) {
   return BASE_GEM_DROP_CHANCE + gemseekerLevel * PERK_DEFINITIONS.gemseeker.bonusPerLevel;
 }
 
+export function getCrateDropChance(perks = {}) {
+  const crateHoarderLevel = clampLevel(perks.cratehoarder || 0, PERK_DEFINITIONS.cratehoarder.maxLevel);
+  return BASE_CRATE_DROP_CHANCE + crateHoarderLevel * PERK_DEFINITIONS.cratehoarder.bonusPerLevel;
+}
+
 export function getCoinYieldMultiplier(perks = {}) {
   const gildedLevel = clampLevel(perks.gilded || 0, PERK_DEFINITIONS.gilded.maxLevel);
   return 1 + gildedLevel * PERK_DEFINITIONS.gilded.bonusPerLevel;
 }
 
-export function getRaiderResourceMultiplier(perks = {}) {
-  const lootingLevel = clampLevel(perks.looting || 0, PERK_DEFINITIONS.looting.maxLevel);
-  return 1 + lootingLevel * PERK_DEFINITIONS.looting.bonusPerLevel;
-}
-
 export function formatPercent(value) {
   return `${Math.round(value * 100)}%`;
+}
+
+export function formatDecimalPercent(value) {
+  const percent = value * 100;
+  return `${Number.isInteger(percent) ? percent : percent.toFixed(1)}%`;
 }
 
 export function toRoman(value) {

@@ -10,6 +10,7 @@ import { TowersScreen } from "./ui/screens/TowersScreen.js";
 import { GemsScreen } from "./ui/screens/GemsScreen.js";
 import { CratesScreen } from "./ui/screens/CratesScreen.js";
 import { ShopScreen } from "./ui/screens/ShopScreen.js";
+import { GameEndScreen } from "./ui/screens/GameEndScreen.js";
 
 const appRoot = document.querySelector("#app");
 const saveService = new SaveService();
@@ -24,4 +25,5 @@ screenManager.register("gems", new GemsScreen({ saveService }));
 screenManager.register("crates", new CratesScreen({ saveService }));
 screenManager.register("shop", new ShopScreen({ saveService }));
 screenManager.register("game-frame", new GameFrameScreen({ flavorManager, saveService }));
+screenManager.register("game-end", new GameEndScreen({ saveService }));
 screenManager.show("main-menu");

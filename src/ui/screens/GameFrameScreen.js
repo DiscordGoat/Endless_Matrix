@@ -1,27 +1,34 @@
 import { RoadGenerator } from "../../game/RoadGenerator.js";
+import { createFlavorFromLevel, createRoadFromLevel, createTilesFromLevel, getTierOneLevel } from "../../game/LevelDefinitions.js";
 import { getRandomCrate } from "../../game/CrateDefinitions.js";
 import { createRaider, RAIDER_TYPES } from "../../game/RaiderDefinitions.js";
 import { getRandomGem } from "../../game/GemDefinitions.js";
-import { getCoinYieldMultiplier, getGemDropChance, getRaiderResourceMultiplier } from "../../game/PerkDefinitions.js";
+import { BASE_COIN_DROP_CHANCE, BASE_RAIDER_RESOURCE_MULTIPLIER, getCoinYieldMultiplier, getCrateDropChance, getGemDropChance } from "../../game/PerkDefinitions.js";
 import { getNextRarity, RARITIES, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
 import { queueCoinReward, queueGemReward, queueTextReward } from "../RewardPopup.js";
 
 const FIRST_TIER_GRID_SIZE = 50;
 const CELL_SIZE = 32;
+const MONOLITH_LIFT = CELL_SIZE * 0.9;
+const MONOLITH_INSET = CELL_SIZE * 0.18;
 const MIN_ZOOM = 0.38;
 const MAX_ZOOM = 2.4;
 const TAU = Math.PI * 2;
-const TOWER_ASSET_NAMES = Array.from(new Set(Object.values(TOWER_DEFINITIONS).map((tower) => tower.asset)));
 const RAIDER_ASSET_NAMES = Array.from(new Set(Object.values(RAIDER_TYPES).flatMap((raider) => raider.frames)));
 const ASSET_SOURCES = {
   tree: `${import.meta.env.BASE_URL}assets/scenery/tree.png`,
   boulder: `${import.meta.env.BASE_URL}assets/scenery/boulder.png`,
-  ...Object.fromEntries(TOWER_ASSET_NAMES.flatMap((asset) => (
-    RARITIES.map((rarity) => {
-      const key = getRarityAssetName(asset, rarity);
-      return [key, `${import.meta.env.BASE_URL}assets/towers/${key}.png`];
-    })
-  ))),
+  ...Object.fromEntries(Object.values(TOWER_DEFINITIONS).flatMap((tower) => {
+    const baseAsset = [[tower.asset, `${import.meta.env.BASE_URL}assets/towers/${tower.asset}.png`]];
+    if (tower.usesRarityAssets === false) return baseAsset;
+    return [
+      ...baseAsset,
+      ...RARITIES.map((rarity) => {
+        const key = getRarityAssetName(tower.asset, rarity);
+        return [key, `${import.meta.env.BASE_URL}assets/towers/${key}.png`];
+      })
+    ];
+  })),
   ...Object.fromEntries(RAIDER_ASSET_NAMES.flatMap((asset) => (
     RARITIES.map((rarity) => {
       const key = getRarityAssetName(asset, rarity);
@@ -31,7 +38,16 @@ const ASSET_SOURCES = {
 };
 const PLAYER_MAX_HEALTH = 100;
 const STARTING_RESOURCES = 10;
-const WAVE_COUNT = 100;
+const DEFAULT_WAVE_COUNT = 20;
+const LEVEL_WAVE_COUNTS = {
+  2: 25
+};
+const RUN_AUTOSAVE_INTERVAL_MS = 10000;
+const TARGET_PRIORITIES = [
+  { id: "strongest", label: "Strongest" },
+  { id: "first", label: "First" },
+  { id: "last", label: "Last" }
+];
 const WAVE_SPAWN_INTERVAL = 0.45;
 const WAVE_SPAWN_SPACING_MULTIPLIER = 1.6;
 const RAIDER_SPAWN_INTERVALS = {
@@ -131,7 +147,7 @@ const WAVE_DEFINITIONS = {
     { type: "walker", rarity: "epic", count: 4 }
   ],
   16: [
-    { type: "car", rarity: "legendary", count: 1 },
+    { type: "car", rarity: "epic", count: 2 },
     { type: "fastcar", rarity: "uncommon", count: 6 },
     { type: "walker", rarity: "rare", count: 10 }
   ],
@@ -141,13 +157,12 @@ const WAVE_DEFINITIONS = {
     { type: "walker", rarity: "legendary", count: 5 }
   ],
   18: [
-    { type: "car", rarity: "legendary", count: 2 },
+    { type: "car", rarity: "epic", count: 4 },
     { type: "fastcar", rarity: "rare", count: 6 },
     { type: "walker", rarity: "epic", count: 8 }
   ],
   19: [
-    { type: "car", rarity: "legendary", count: 1 },
-    { type: "car", rarity: "epic", count: 3 },
+    { type: "car", rarity: "epic", count: 5 },
     { type: "fastcar", rarity: "rare", count: 4 },
     { type: "walker", rarity: "legendary", count: 10 }
   ],
@@ -156,7 +171,40 @@ const WAVE_DEFINITIONS = {
     { type: "car", rarity: "rare", count: 3 },
     { type: "fastcar", rarity: "rare", count: 6 },
     { type: "walker", rarity: "legendary", count: 5 }
+  ],
+  21: [
+    { type: "walker", rarity: "rare", count: 22 },
+    { type: "fastcar", rarity: "rare", count: 6 },
+    { type: "car", rarity: "rare", count: 4 }
+  ],
+  22: [
+    { type: "walker", rarity: "epic", count: 10 },
+    { type: "car", rarity: "epic", count: 4 },
+    { type: "fastcar", rarity: "rare", count: 7 }
+  ],
+  23: [
+    { type: "heavy_transport", rarity: "uncommon", count: 4 },
+    { type: "walker", rarity: "legendary", count: 5 },
+    { type: "fastcar", rarity: "rare", count: 8 }
+  ],
+  24: [
+    { type: "heavy_transport", rarity: "rare", count: 3 },
+    { type: "car", rarity: "epic", count: 5 },
+    { type: "walker", rarity: "epic", count: 12 }
+  ],
+  25: [
+    { type: "heavy_transport", rarity: "rare", count: 4 },
+    { type: "car", rarity: "epic", count: 6 },
+    { type: "fastcar", rarity: "rare", count: 8 },
+    { type: "walker", rarity: "legendary", count: 6 }
   ]
+};
+const LEVEL_WAVE_DEFINITIONS = {
+  21: createTierTwoWaveDefinitions(0),
+  22: createTierTwoWaveDefinitions(1),
+  23: createTierTwoWaveDefinitions(2),
+  24: createTierTwoWaveDefinitions(3),
+  25: createTierTwoWaveDefinitions(4)
 };
 
 export class GameFrameScreen {
@@ -191,7 +239,9 @@ export class GameFrameScreen {
     speedC: 0
   };
   #flavor = null;
+  #levelDefinition = null;
   #road = null;
+  #tiles = [];
   #rerollIndex = 0;
   #assets = new Map();
   #roadGenerator = new RoadGenerator();
@@ -207,6 +257,7 @@ export class GameFrameScreen {
   #gameOver = false;
   #runInitialized = false;
   #activeRunLevel = null;
+  #context = null;
   #runCoins = 0;
   #runGems = [];
   #runCrates = [];
@@ -222,6 +273,7 @@ export class GameFrameScreen {
   #towers = [];
   #nextTowerId = 1;
   #effects = [];
+  #lastRunSaveAt = 0;
 
   constructor({ flavorManager, saveService }) {
     this.#flavorManager = flavorManager;
@@ -229,13 +281,20 @@ export class GameFrameScreen {
   }
 
   mount(context) {
-    const requestedLevel = context.params.level || 1;
+    this.#context = context;
+    const activeRun = context.params.resume ? this.#saveService.getActiveRun() : null;
+    const requestedLevel = activeRun?.level || context.params.level || 1;
 
     if (!this.#runInitialized || this.#activeRunLevel !== requestedLevel) {
       this.#level = requestedLevel;
       this.#activeRunLevel = requestedLevel;
       this.#generateMapFlavor();
-      this.#resetRunState();
+      if (activeRun && activeRun.level === requestedLevel) {
+        this.#restoreRunState(activeRun);
+      } else {
+        this.#resetRunState();
+        this.#saveActiveRun();
+      }
       this.#runInitialized = true;
     }
 
@@ -249,7 +308,7 @@ export class GameFrameScreen {
         <div class="run-status-strip">
           <div class="run-pill">Level ${this.#level}</div>
           <div class="run-pill">${this.#flavor.biome.label}</div>
-          <div class="run-pill" data-wave-display>Wave ${this.#wave} / ${WAVE_COUNT}</div>
+          <div class="run-pill" data-wave-display>Wave ${this.#wave} / ${this.#getWaveCount()}</div>
           <button class="gameframe-end" type="button">End Game</button>
         </div>
         <div class="player-stat-strip">
@@ -259,20 +318,21 @@ export class GameFrameScreen {
           <div class="run-pill" data-run-crate-display>+${this.#runCrates.length} Crates</div>
         </div>
       </header>
-      <button class="time-toggle" type="button" aria-label="Start time" data-running="false">
+      <button class="time-toggle" type="button" aria-label="${this.#running ? "Pause time" : "Start time"}" data-running="${this.#running}">
         <span class="time-icon" aria-hidden="true"></span>
       </button>
       <div class="speed-options" aria-label="Game speed">
-        <button class="speed-button active" type="button" data-speed="1">1x</button>
-        <button class="speed-button" type="button" data-speed="4">4x</button>
-        <button class="speed-button" type="button" data-speed="8">8x</button>
-        <button class="speed-button" type="button" data-speed="16">16x</button>
+        <button class="speed-button${this.#gameSpeed === 1 ? " active" : ""}" type="button" data-speed="1">1x</button>
+        <button class="speed-button${this.#gameSpeed === 4 ? " active" : ""}" type="button" data-speed="4">4x</button>
+        <button class="speed-button${this.#gameSpeed === 8 ? " active" : ""}" type="button" data-speed="8">8x</button>
+        <button class="speed-button${this.#gameSpeed === 16 ? " active" : ""}" type="button" data-speed="16">16x</button>
       </div>
       <button class="gameframe-back" type="button">Back</button>
       <section class="tower-popup" data-tower-popup>
         <div class="tower-popup-title" data-tower-popup-title>Tower</div>
         <div class="tower-popup-actions" data-placement-panel></div>
         <div class="tower-popup-actions" data-tower-panel>
+          <div class="target-priority-group" data-target-priority-group aria-label="Target priority"></div>
           <button class="tower-popup-button" type="button" data-upgrade-tower>Upgrade</button>
           <button class="tower-popup-button danger" type="button" data-recycle-tower>Recycle</button>
         </div>
@@ -305,6 +365,10 @@ export class GameFrameScreen {
       const button = event.target.closest("[data-place-tower]");
       if (button) this.#placeTower(button.dataset.placeTower);
     });
+    screen.querySelector("[data-target-priority-group]").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-target-priority]");
+      if (button) this.#setSelectedTowerPriority(button.dataset.targetPriority);
+    });
     screen.querySelector("[data-upgrade-tower]").addEventListener("click", () => this.#upgradeSelectedTower());
     screen.querySelector("[data-recycle-tower]").addEventListener("click", () => this.#recycleSelectedTower());
 
@@ -320,12 +384,14 @@ export class GameFrameScreen {
   }
 
   unmount() {
+    this.#saveActiveRun();
     cancelAnimationFrame(this.#animationFrame);
     window.removeEventListener("resize", this.#resize);
     this.#pointers.clear();
     this.#element = null;
     this.#canvas = null;
     this.#ctx = null;
+    this.#context = null;
   }
 
   #bindInput() {
@@ -349,11 +415,12 @@ export class GameFrameScreen {
     this.#canvas.style.height = `${height}px`;
     this.#ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const worldSize = this.#worldSize();
-    const fitScale = Math.min(width / worldSize, height / worldSize);
+    const worldWidth = this.#worldWidth();
+    const worldHeight = this.#worldHeight();
+    const fitScale = Math.min(width / worldWidth, height / worldHeight);
     this.#camera.scale = clamp(fitScale * 1.08, MIN_ZOOM, MAX_ZOOM);
-    this.#camera.x = (width - worldSize * this.#camera.scale) / 2;
-    this.#camera.y = (height - worldSize * this.#camera.scale) / 2;
+    this.#camera.x = (width - worldWidth * this.#camera.scale) / 2;
+    this.#camera.y = (height - worldHeight * this.#camera.scale) / 2;
     this.#clampCamera();
     this.#draw();
   };
@@ -369,6 +436,7 @@ export class GameFrameScreen {
         const scaledDt = dt * this.#gameSpeed;
         this.#time += scaledDt;
         this.#updateWave(scaledDt);
+        this.#autosaveRun(now);
       }
 
       if (this.#running || this.#needsDraw || this.#effects.length > 0) {
@@ -392,17 +460,12 @@ export class GameFrameScreen {
     const button = this.#element.querySelector(".time-toggle");
     button.dataset.running = String(this.#running);
     button.setAttribute("aria-label", this.#running ? "Pause time" : "Start time");
+    this.#saveActiveRun();
     this.#requestDraw();
   }
 
   #endGame(context) {
-    this.#running = false;
-    this.#waveStarted = false;
-    this.#spawning = false;
-    this.#spawnQueue = [];
-    this.#settleRun();
-    this.#runInitialized = false;
-    context.navigate("level-select");
+    this.#finishRun({ victory: false, context });
   }
 
   #setGameSpeed(speed) {
@@ -411,6 +474,7 @@ export class GameFrameScreen {
     this.#element.querySelectorAll(".speed-button").forEach((button) => {
       button.classList.toggle("active", Number(button.dataset.speed) === this.#gameSpeed);
     });
+    this.#saveActiveRun();
     this.#requestDraw();
   }
 
@@ -434,8 +498,71 @@ export class GameFrameScreen {
     this.#towers = [];
     this.#nextTowerId = 1;
     this.#effects = [];
+    this.#lastRunSaveAt = 0;
     this.#closeTowerPopup();
     this.#syncRunHud();
+  }
+
+  #restoreRunState(run) {
+    this.#playerHealth = clamp(run.playerHealth, 0, PLAYER_MAX_HEALTH);
+    this.#resources = Math.max(0, run.resources);
+    this.#runCoins = run.runCoins || 0;
+    this.#runGems = [...(run.runGems || [])];
+    this.#runCrates = [...(run.runCrates || [])];
+    this.#runSettled = false;
+    this.#wave = clamp(Math.round(run.wave || 1), 1, this.#getWaveCount());
+    this.#waveStarted = Boolean(run.waveStarted);
+    this.#spawning = Boolean(run.spawning);
+    this.#spawnQueue = [...(run.spawnQueue || [])];
+    this.#spawnTimer = Number(run.spawnTimer) || 0;
+    this.#raiders = [...(run.raiders || [])];
+    this.#nextRaiderId = Math.max(1, Math.round(run.nextRaiderId || 1));
+    this.#gameOver = false;
+    this.#selectedArea = null;
+    this.#selectedTower = null;
+    this.#towers = [...(run.towers || [])];
+    this.#nextTowerId = Math.max(1, Math.round(run.nextTowerId || 1));
+    this.#running = Boolean(run.running);
+    this.#time = Math.max(0, Number(run.time) || 0);
+    this.#gameSpeed = clamp(Number(run.gameSpeed) || 1, 1, 16);
+    this.#effects = [];
+    this.#lastRunSaveAt = performance.now();
+    this.#closeTowerPopup();
+    this.#syncRunHud();
+  }
+
+  #autosaveRun(now = performance.now()) {
+    if (now - this.#lastRunSaveAt < RUN_AUTOSAVE_INTERVAL_MS) return;
+    this.#saveActiveRun(now);
+  }
+
+  #saveActiveRun(now = performance.now()) {
+    if (this.#runSettled || this.#gameOver) return;
+
+    this.#lastRunSaveAt = now;
+    this.#saveService.saveActiveRun({
+      schemaVersion: 1,
+      savedAt: Date.now(),
+      level: this.#level,
+      activeRunLevel: this.#activeRunLevel,
+      playerHealth: this.#playerHealth,
+      resources: this.#resources,
+      wave: this.#wave,
+      waveStarted: this.#waveStarted,
+      spawning: this.#spawning,
+      spawnQueue: this.#spawnQueue.map((entry) => ({ ...entry })),
+      spawnTimer: this.#spawnTimer,
+      raiders: this.#raiders.map((raider) => ({ ...raider })),
+      nextRaiderId: this.#nextRaiderId,
+      towers: this.#towers.map((tower) => ({ ...tower })),
+      nextTowerId: this.#nextTowerId,
+      runCoins: this.#runCoins,
+      runGems: [...this.#runGems],
+      runCrates: [...this.#runCrates],
+      running: this.#running,
+      time: this.#time,
+      gameSpeed: this.#gameSpeed
+    });
   }
 
   #startCurrentWave() {
@@ -444,10 +571,11 @@ export class GameFrameScreen {
     this.#spawnQueue = this.#buildWaveQueue(this.#wave);
     this.#spawnTimer = 0;
     this.#syncRunHud();
+    this.#saveActiveRun();
   }
 
   #buildWaveQueue(wave) {
-    const definition = WAVE_DEFINITIONS[wave] || [{ type: "walker", rarity: "common", count: Math.min(50, wave * 10) }];
+    const definition = this.#getWaveDefinition(wave);
     return this.#spreadWaveEntries(definition).map((entry) => ({
       type: entry.type,
       rarity: entry.rarity,
@@ -483,17 +611,43 @@ export class GameFrameScreen {
     return (RAIDER_SPAWN_INTERVALS[type]?.[rarity] ?? WAVE_SPAWN_INTERVAL) * WAVE_SPAWN_SPACING_MULTIPLIER;
   }
 
+  #getWaveCount() {
+    return LEVEL_WAVE_COUNTS[this.#level] || DEFAULT_WAVE_COUNT;
+  }
+
+  #getWaveDefinition(wave) {
+    return LEVEL_WAVE_DEFINITIONS[this.#level]?.[wave]
+      || WAVE_DEFINITIONS[wave]
+      || [{ type: "walker", rarity: "common", count: Math.min(50, wave * 10) }];
+  }
+
   #generateMapFlavor() {
+    this.#levelDefinition = getTierOneLevel(this.#level);
+    if (this.#levelDefinition) {
+      this.#flavor = createFlavorFromLevel(this.#levelDefinition);
+      this.#road = createRoadFromLevel(this.#levelDefinition);
+      this.#tiles = createTilesFromLevel(this.#levelDefinition);
+      return;
+    }
+
+    const gridSize = this.#gridWidth();
     this.#flavor = this.#flavorManager.getFlavor({
       tier: 1,
       level: this.#level,
-      gridSize: FIRST_TIER_GRID_SIZE,
+      gridSize,
       seedOffset: this.#rerollIndex
     });
     this.#road = this.#roadGenerator.generate({
-      gridSize: FIRST_TIER_GRID_SIZE,
+      gridSize,
       obstacles: this.#flavor.elements,
       seed: 20000 + this.#level * 131 + this.#rerollIndex * 7919
+    });
+    this.#tiles = createTilesFromLevel({
+      level: this.#level,
+      dimensions: { width: this.#gridWidth(), height: this.#gridHeight() },
+      generator: { seed: 20000 + this.#level * 131 + this.#rerollIndex * 7919 },
+      elements: this.#flavor.elements,
+      road: this.#road
     });
   }
 
@@ -601,9 +755,10 @@ export class GameFrameScreen {
     this.#drawGridBase(worldSize);
     this.#drawGridLines(worldSize);
     this.#drawRoad();
-    this.#drawPlacementSelection();
+    this.#drawTiles();
     this.#drawTowerRanges();
     this.#drawFlavorElements();
+    this.#drawPlacementSelection();
     this.#drawTowers();
     this.#drawRaiders();
     this.#drawEffects();
@@ -622,17 +777,20 @@ export class GameFrameScreen {
     this.#ctx.strokeStyle = "rgba(170, 244, 255, 0.14)";
     this.#ctx.lineWidth = 1;
 
-    for (let i = 0; i <= FIRST_TIER_GRID_SIZE; i++) {
+    for (let i = 0; i <= this.#gridWidth(); i++) {
       const pos = i * CELL_SIZE;
 
       this.#ctx.beginPath();
       this.#ctx.moveTo(pos, 0);
-      this.#ctx.lineTo(pos, worldSize);
+      this.#ctx.lineTo(pos, this.#worldHeight());
       this.#ctx.stroke();
+    }
 
+    for (let i = 0; i <= this.#gridHeight(); i++) {
+      const pos = i * CELL_SIZE;
       this.#ctx.beginPath();
       this.#ctx.moveTo(0, pos);
-      this.#ctx.lineTo(worldSize, pos);
+      this.#ctx.lineTo(this.#worldWidth(), pos);
       this.#ctx.stroke();
     }
   }
@@ -661,6 +819,37 @@ export class GameFrameScreen {
     this.#strokeRoadPath();
 
     this.#drawRoadFlow();
+    this.#ctx.restore();
+  }
+
+  #drawTiles() {
+    if (!this.#tiles.length) return;
+
+    this.#ctx.save();
+    this.#ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
+    this.#ctx.lineWidth = 1.8;
+    this.#ctx.shadowColor = "rgba(255, 255, 255, 0.18)";
+    this.#ctx.shadowBlur = 8;
+
+    for (const tile of this.#tiles) {
+      const x = tile.x * CELL_SIZE;
+      const y = tile.y * CELL_SIZE;
+      const width = tile.width * CELL_SIZE;
+      const height = tile.height * CELL_SIZE;
+
+      this.#ctx.strokeRect(x + 3, y + 3, width - 6, height - 6);
+      this.#ctx.save();
+      this.#ctx.shadowBlur = 0;
+      this.#ctx.strokeStyle = "rgba(255, 255, 255, 0.24)";
+      this.#ctx.beginPath();
+      this.#ctx.moveTo(x + CELL_SIZE, y + 5);
+      this.#ctx.lineTo(x + CELL_SIZE, y + height - 5);
+      this.#ctx.moveTo(x + 5, y + CELL_SIZE);
+      this.#ctx.lineTo(x + width - 5, y + CELL_SIZE);
+      this.#ctx.stroke();
+      this.#ctx.restore();
+    }
+
     this.#ctx.restore();
   }
 
@@ -714,8 +903,7 @@ export class GameFrameScreen {
   #drawPlacementSelection() {
     if (!this.#selectedArea) return;
 
-    const x = this.#selectedArea.x * CELL_SIZE;
-    const y = this.#selectedArea.y * CELL_SIZE;
+    const rect = this.#getAreaDrawRect(this.#selectedArea);
     const color = this.#selectedArea.valid
       ? "rgba(255, 255, 255, 0.9)"
       : "rgba(255, 101, 116, 0.95)";
@@ -724,10 +912,10 @@ export class GameFrameScreen {
     this.#ctx.fillStyle = this.#selectedArea.valid
       ? "rgba(255, 255, 255, 0.08)"
       : "rgba(255, 101, 116, 0.13)";
-    this.#ctx.fillRect(x, y, CELL_SIZE * 2, CELL_SIZE * 2);
+    this.#ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
     this.#ctx.strokeStyle = color;
     this.#ctx.lineWidth = 2;
-    this.#ctx.strokeRect(x + 2, y + 2, CELL_SIZE * 2 - 4, CELL_SIZE * 2 - 4);
+    this.#ctx.strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
     this.#ctx.restore();
   }
 
@@ -738,14 +926,13 @@ export class GameFrameScreen {
     if (tower) {
       const center = this.#getTowerCenter(tower);
       const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
+      if (stats.rangeCells <= 0) return;
       this.#drawRangeCircle(center.x, center.y, stats.rangeCells * CELL_SIZE, RARITY_COLORS[tower.rarity]);
     } else if (area?.valid) {
       const tower = this.#getFirstPlaceableTower();
       if (!tower) return;
-      const center = {
-        x: (area.x + 1) * CELL_SIZE,
-        y: (area.y + 1) * CELL_SIZE
-      };
+      const rect = this.#getAreaDrawRect(area);
+      const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
       this.#drawRangeCircle(center.x, center.y, tower.rarities.common.rangeCells * CELL_SIZE, "rgba(255, 255, 255, 0.92)");
     }
   }
@@ -770,9 +957,13 @@ export class GameFrameScreen {
   #drawTowers() {
     for (const tower of this.#towers) {
       const definition = TOWER_DEFINITIONS[tower.type];
+      const footprint = getTowerFootprint(definition);
       const center = this.#getTowerCenter(tower);
-      const image = this.#assets.get(getRarityAssetName(definition.asset, tower.rarity));
-      const size = CELL_SIZE * 2.25;
+      const image = this.#assets.get(getTowerAssetKey(definition, tower.rarity));
+      const surfaceRect = this.#getTowerSurfaceRect(tower);
+      const size = surfaceRect
+        ? Math.min(surfaceRect.width, surfaceRect.height) * 1.05
+        : CELL_SIZE * footprint * 1.12;
 
       this.#ctx.save();
       this.#ctx.translate(center.x, center.y);
@@ -794,9 +985,15 @@ export class GameFrameScreen {
       this.#ctx.restore();
 
       this.#ctx.save();
+      const outline = surfaceRect || {
+        x: tower.x * CELL_SIZE,
+        y: tower.y * CELL_SIZE,
+        width: CELL_SIZE * footprint,
+        height: CELL_SIZE * footprint
+      };
       this.#ctx.strokeStyle = this.#selectedTower === tower ? RARITY_COLORS[tower.rarity] : "rgba(255, 255, 255, 0.22)";
       this.#ctx.lineWidth = this.#selectedTower === tower ? 2.5 : 1;
-      this.#ctx.strokeRect(tower.x * CELL_SIZE + 2, tower.y * CELL_SIZE + 2, CELL_SIZE * 2 - 4, CELL_SIZE * 2 - 4);
+      this.#ctx.strokeRect(outline.x + 2, outline.y + 2, outline.width - 4, outline.height - 4);
       this.#ctx.restore();
     }
   }
@@ -814,6 +1011,8 @@ export class GameFrameScreen {
         this.#drawMuzzleEffect(effect, progress);
       } else if (effect.type === "explosion") {
         this.#drawExplosionEffect(effect, progress);
+      } else if (effect.type === "factory-beam") {
+        this.#drawFactoryBeamEffect(effect, progress);
       }
     }
   }
@@ -869,6 +1068,27 @@ export class GameFrameScreen {
     this.#ctx.restore();
   }
 
+  #drawFactoryBeamEffect(effect, progress) {
+    const fade = Math.sin(progress * Math.PI);
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.strokeStyle = withAlpha(effect.color, 0.3 + fade * 0.7);
+    this.#ctx.lineWidth = CELL_SIZE * (0.28 + fade * 0.24);
+    this.#ctx.shadowColor = effect.color;
+    this.#ctx.shadowBlur = 28;
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(effect.x, effect.y);
+    this.#ctx.lineTo(effect.x, -CELL_SIZE * 5);
+    this.#ctx.stroke();
+
+    this.#ctx.fillStyle = withAlpha(effect.color, 0.2 + fade * 0.42);
+    this.#ctx.beginPath();
+    this.#ctx.arc(effect.x, effect.y, CELL_SIZE * (0.36 + fade * 0.5), 0, TAU);
+    this.#ctx.fill();
+    this.#ctx.restore();
+  }
+
   #handleMapTap(clientX, clientY) {
     const raider = this.#getRaiderAtScreenPoint(clientX, clientY);
     if (raider) {
@@ -877,14 +1097,15 @@ export class GameFrameScreen {
     }
 
     const cell = this.#screenToGrid(clientX, clientY);
+    const world = this.#screenToWorld(clientX, clientY);
     const hadSelection = Boolean(this.#selectedArea || this.#selectedTower || this.#element.querySelector("[data-tower-popup]")?.classList.contains("active"));
 
-    if (!this.#isInBounds(cell.x, cell.y)) {
+    if (!this.#isInBounds(cell.x, cell.y) && !this.#getMonolithAtWorldPoint(world.x, world.y)) {
       this.#clearSelection();
       return;
     }
 
-    const tower = this.#getTowerAtCell(cell.x, cell.y);
+    const tower = this.#getTowerAtWorldPoint(world.x, world.y) || this.#getTowerAtCell(cell.x, cell.y);
     if (tower) {
       if (this.#selectedTower === tower) {
         this.#openTowerPanel(tower);
@@ -902,8 +1123,43 @@ export class GameFrameScreen {
       return;
     }
 
-    const area = this.#normalize2x2(cell.x, cell.y);
-    const valid = this.#canPlace2x2(area.x, area.y);
+    const monolith = this.#getMonolithAtWorldPoint(world.x, world.y) || this.#getMonolithAtCell(cell.x, cell.y);
+    if (monolith) {
+      const area = {
+        x: monolith.x,
+        y: monolith.y,
+        width: monolith.width,
+        height: monolith.height,
+        surface: "monolith"
+      };
+      const valid = this.#canPlaceFootprint(area.x, area.y, area.width, { allowMonolith: true });
+
+      if (
+        this.#selectedArea &&
+        this.#selectedArea.x === area.x &&
+        this.#selectedArea.y === area.y &&
+        valid
+      ) {
+        this.#openPlacementPanel(area);
+        return;
+      }
+
+      if (hadSelection) {
+        this.#clearSelection();
+        return;
+      }
+
+      this.#selectedArea = { ...area, valid };
+      this.#selectedTower = null;
+      this.#closeTowerPopup();
+      return;
+    }
+
+    const tile = this.#getTileAtCell(cell.x, cell.y);
+    const area = tile
+      ? { x: tile.x, y: tile.y, width: tile.width, height: tile.height, surface: "tile" }
+      : this.#normalize2x2(cell.x, cell.y);
+    const valid = Boolean(tile) && this.#canPlaceFootprint(area.x, area.y, 2);
 
     if (
       this.#selectedArea &&
@@ -920,7 +1176,7 @@ export class GameFrameScreen {
       return;
     }
 
-    if (this.#isObstacleCell(cell.x, cell.y)) {
+    if (!tile || this.#isObstacleCell(cell.x, cell.y)) {
       this.#clearSelection();
       return;
     }
@@ -951,18 +1207,18 @@ export class GameFrameScreen {
 
   #normalize2x2(x, y) {
     return {
-      x: clamp(x, 0, FIRST_TIER_GRID_SIZE - 2),
-      y: clamp(y, 0, FIRST_TIER_GRID_SIZE - 2)
+      x: clamp(x, 0, this.#gridWidth() - 2),
+      y: clamp(y, 0, this.#gridHeight() - 2)
     };
   }
 
-  #canPlace2x2(x, y) {
-    if (x < 0 || y < 0 || x + 1 >= FIRST_TIER_GRID_SIZE || y + 1 >= FIRST_TIER_GRID_SIZE) return false;
+  #canPlaceFootprint(x, y, footprint, { allowMonolith = false } = {}) {
+    if (x < 0 || y < 0 || x + footprint - 1 >= this.#gridWidth() || y + footprint - 1 >= this.#gridHeight()) return false;
 
-    for (let yy = y; yy < y + 2; yy++) {
-      for (let xx = x; xx < x + 2; xx++) {
+    for (let yy = y; yy < y + footprint; yy++) {
+      for (let xx = x; xx < x + footprint; xx++) {
         if (this.#isRoadCell(xx, yy)) return false;
-        if (this.#isObstacleCell(xx, yy)) return false;
+        if (this.#isObstacleCell(xx, yy, { ignoreMonolith: allowMonolith })) return false;
         if (this.#getTowerAtCell(xx, yy)) return false;
       }
     }
@@ -971,25 +1227,51 @@ export class GameFrameScreen {
   }
 
   #isInBounds(x, y) {
-    return x >= 0 && y >= 0 && x < FIRST_TIER_GRID_SIZE && y < FIRST_TIER_GRID_SIZE;
+    return x >= 0 && y >= 0 && x < this.#gridWidth() && y < this.#gridHeight();
   }
 
   #isRoadCell(x, y) {
     return this.#road.cells.some((cell) => cell.x === x && cell.y === y);
   }
 
-  #isObstacleCell(x, y) {
+  #isObstacleCell(x, y, { ignoreMonolith = false } = {}) {
     return this.#flavor.elements.some((item) => {
+      if (ignoreMonolith && item.type === "monolith") return false;
       return x >= item.x && x < item.x + item.width && y >= item.y && y < item.y + item.height;
     });
   }
 
+  #getMonolithAtCell(x, y) {
+    return this.#flavor.elements.find((item) => {
+      return item.type === "monolith" && x >= item.x && x < item.x + item.width && y >= item.y && y < item.y + item.height;
+    });
+  }
+
+  #getTileAtCell(x, y) {
+    return this.#tiles.find((tile) => {
+      return x >= tile.x && x < tile.x + tile.width && y >= tile.y && y < tile.y + tile.height;
+    });
+  }
+
   #getTowerAtCell(x, y) {
-    return this.#towers.find((tower) => x >= tower.x && x < tower.x + 2 && y >= tower.y && y < tower.y + 2);
+    return this.#towers.find((tower) => {
+      const footprint = getTowerFootprint(TOWER_DEFINITIONS[tower.type]);
+      return x >= tower.x && x < tower.x + footprint && y >= tower.y && y < tower.y + footprint;
+    });
+  }
+
+  #getTowerAtWorldPoint(x, y) {
+    return this.#towers.find((tower) => {
+      const rect = this.#getTowerSurfaceRect(tower);
+      if (!rect) return false;
+      return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+    });
   }
 
   #getFirstPlaceableTower() {
-    return Object.values(TOWER_DEFINITIONS).find((tower) => this.#saveService.isTowerUnlocked(tower.id, "common"));
+    return Object.values(TOWER_DEFINITIONS).find((tower) => {
+      return tower.rarities.common.rangeCells > 0 && this.#saveService.isTowerUnlocked(tower.id, "common");
+    });
   }
 
   #getRaiderAtScreenPoint(clientX, clientY) {
@@ -1019,7 +1301,9 @@ export class GameFrameScreen {
     const title = this.#element.querySelector("[data-tower-popup-title]");
     const placementPanel = this.#element.querySelector("[data-placement-panel]");
     const towerPanel = this.#element.querySelector("[data-tower-panel]");
-    const placeableTowers = Object.values(TOWER_DEFINITIONS);
+    const placeableTowers = Object.values(TOWER_DEFINITIONS)
+      .filter((tower) => area.surface === "monolith" ? tower.id === "factory" : tower.id !== "factory")
+      .sort((a, b) => Number(a.id === "factory") - Number(b.id === "factory"));
 
     title.textContent = "Tower Placement";
     placementPanel.innerHTML = placeableTowers.map((tower) => {
@@ -1048,7 +1332,7 @@ export class GameFrameScreen {
         if (!tower) return;
         const unlocked = this.#saveService.isTowerUnlocked(tower.id, "common");
         const cost = tower.rarities.common.placementCost;
-        button.disabled = !unlocked || this.#resources < cost;
+        button.disabled = !unlocked || this.#resources < cost || !this.#canPlaceTowerOnSelectedArea(tower.id);
       });
       return;
     }
@@ -1074,9 +1358,22 @@ export class GameFrameScreen {
     const recycleButton = this.#element.querySelector("[data-recycle-tower]");
     const nextRarity = getNextRarity(tower.rarity);
     const definition = TOWER_DEFINITIONS[tower.type];
+    const priorityGroup = this.#element.querySelector("[data-target-priority-group]");
 
     title.textContent = `${RARITY_LABELS[tower.rarity]} ${definition.label}`;
     recycleButton.textContent = `Recycle +${Math.floor(this.#getRecycleValue(tower))}R`;
+    priorityGroup.innerHTML = tower.type === "factory" ? "" : `
+      <div class="target-priority-label">Target Priority</div>
+      <div class="target-priority-options">
+        ${TARGET_PRIORITIES.map((priority) => `
+          <button
+            class="target-priority-button${(tower.targetPriority || "first") === priority.id ? " active" : ""}"
+            type="button"
+            data-target-priority="${priority.id}"
+          >${priority.label}</button>
+        `).join("")}
+      </div>
+    `;
 
     if (!nextRarity) {
       upgradeButton.textContent = "Max Tier";
@@ -1109,6 +1406,7 @@ export class GameFrameScreen {
     const definition = TOWER_DEFINITIONS[towerId];
     if (!definition) return;
     const stats = definition.rarities.common;
+    if (!this.#canPlaceTowerOnSelectedArea(towerId)) return;
     if (!this.#saveService.isTowerUnlocked(towerId, "common")) return;
     if (this.#resources < stats.placementCost) return;
 
@@ -1118,9 +1416,11 @@ export class GameFrameScreen {
       type: towerId,
       x: this.#selectedArea.x,
       y: this.#selectedArea.y,
+      surface: this.#selectedArea.surface || "ground",
       rarity: "common",
       spent: stats.placementCost,
-      cooldown: 0,
+      cooldown: towerId === "factory" ? stats.attackInterval : 0,
+      targetPriority: "first",
       angle: -Math.PI / 2
     };
     this.#towers.push(tower);
@@ -1128,6 +1428,25 @@ export class GameFrameScreen {
     this.#selectedTower = tower;
     this.#closeTowerPopup();
     this.#syncRunHud();
+    this.#saveActiveRun();
+    this.#requestDraw();
+  }
+
+  #canPlaceTowerOnSelectedArea(towerId) {
+    const definition = TOWER_DEFINITIONS[towerId];
+    if (!definition || !this.#selectedArea?.valid) return false;
+    const isMonolith = this.#selectedArea.surface === "monolith";
+    if (towerId === "factory" && !isMonolith) return false;
+    if (towerId !== "factory" && isMonolith) return false;
+    return this.#canPlaceFootprint(this.#selectedArea.x, this.#selectedArea.y, getTowerFootprint(definition), { allowMonolith: isMonolith });
+  }
+
+  #setSelectedTowerPriority(priority) {
+    if (!this.#selectedTower || !TARGET_PRIORITIES.some((item) => item.id === priority)) return;
+
+    this.#selectedTower.targetPriority = priority;
+    this.#openTowerPanel(this.#selectedTower);
+    this.#saveActiveRun();
     this.#requestDraw();
   }
 
@@ -1142,8 +1461,12 @@ export class GameFrameScreen {
     this.#resources -= cost;
     tower.rarity = nextRarity;
     tower.spent += cost;
+    if (tower.type === "factory") {
+      tower.cooldown = Math.min(tower.cooldown, TOWER_DEFINITIONS[tower.type].rarities[nextRarity].attackInterval);
+    }
     this.#openTowerPanel(tower);
     this.#syncRunHud();
+    this.#saveActiveRun();
     this.#requestDraw();
   }
 
@@ -1155,6 +1478,7 @@ export class GameFrameScreen {
     this.#towers = this.#towers.filter((item) => item !== tower);
     this.#clearSelection();
     this.#syncRunHud();
+    this.#saveActiveRun();
     this.#requestDraw();
   }
 
@@ -1193,25 +1517,21 @@ export class GameFrameScreen {
     this.#waveStarted = false;
     this.#grantWaveRewards(this.#wave);
 
-    if (this.#wave >= WAVE_COUNT) {
-      this.#running = false;
-      this.#settleRun();
-      const button = this.#element.querySelector(".time-toggle");
-      button.dataset.running = "false";
-      button.setAttribute("aria-label", "Start time");
-      this.#requestDraw();
+    if (this.#wave >= this.#getWaveCount()) {
+      this.#finishRun({ victory: true });
     } else {
       this.#wave++;
       if (shouldContinue) {
         this.#startCurrentWave();
       }
+      this.#saveActiveRun();
     }
   }
 
   #grantWaveRewards(wave) {
     const perks = this.#saveService.getSnapshot().perks;
 
-    if (wave % 5 === 0) {
+    if (Math.random() < BASE_COIN_DROP_CHANCE) {
       const coins = Math.round(10 * getCoinYieldMultiplier(perks));
       this.#runCoins += coins;
       queueCoinReward(coins);
@@ -1223,7 +1543,7 @@ export class GameFrameScreen {
       queueGemReward(gemId);
     }
 
-    if (wave % 20 === 0) {
+    if (Math.random() < getCrateDropChance(perks)) {
       const crateId = getRandomCrate();
       this.#runCrates.push(crateId);
       queueTextReward({
@@ -1232,15 +1552,8 @@ export class GameFrameScreen {
         tone: "crate"
       });
     }
-  }
 
-  #settleRun() {
-    if (this.#runSettled) return;
-
-    this.#saveService.addCoins(this.#runCoins);
-    this.#saveService.addGems(this.#runGems);
-    this.#saveService.addCrates(this.#runCrates);
-    this.#runSettled = true;
+    this.#saveActiveRun();
   }
 
   #spawnRaider(type, rarity) {
@@ -1278,6 +1591,11 @@ export class GameFrameScreen {
       const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
       tower.cooldown -= dt;
 
+      if (tower.type === "factory") {
+        this.#updateFactory(tower, stats);
+        continue;
+      }
+
       let shots = 0;
       while (tower.cooldown <= 0 && shots < MAX_TOWER_SHOTS_PER_UPDATE) {
         const target = this.#findTowerTarget(tower);
@@ -1306,29 +1624,54 @@ export class GameFrameScreen {
     this.#raiders = this.#raiders.filter((raider) => raider.alive);
   }
 
+  #updateFactory(tower, stats) {
+    while (tower.cooldown <= 0) {
+      this.#resources += stats.resourceYield;
+      tower.cooldown += stats.attackInterval;
+      this.#addFactoryBeamEffect(tower);
+    }
+  }
+
+  #addFactoryBeamEffect(tower) {
+    const center = this.#getTowerCenter(tower);
+    this.#effects.push({
+      type: "factory-beam",
+      x: center.x,
+      y: center.y,
+      color: RARITY_COLORS[tower.rarity],
+      startedAt: performance.now(),
+      duration: 200
+    });
+  }
+
   #findTowerTarget(tower) {
     const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
     const center = this.#getTowerCenter(tower);
-
-    if (tower.type === "raygun") {
-      return this.#findRaygunTarget(center, stats.rangeCells * CELL_SIZE);
-    }
-
-    let best = null;
-    let bestProgress = -Infinity;
+    const range = stats.rangeCells * CELL_SIZE;
+    const priority = tower.targetPriority || "first";
+    let candidates = [];
 
     for (const raider of this.#raiders) {
       if (!raider.alive) continue;
       const position = this.#getRoadPosition(raider.progress);
       const distance = Math.hypot(position.x - center.x, position.y - center.y);
-
-      if (distance <= stats.rangeCells * CELL_SIZE && raider.progress > bestProgress) {
-        best = raider;
-        bestProgress = raider.progress;
-      }
+      if (distance <= range) candidates.push(raider);
     }
 
-    return best;
+    if (candidates.length <= 0) return null;
+
+    if (priority === "strongest") {
+      return candidates.sort((a, b) => {
+        const strengthDelta = getRaiderStrength(b) - getRaiderStrength(a);
+        return strengthDelta || b.progress - a.progress;
+      })[0];
+    }
+
+    if (priority === "last") {
+      return candidates.sort((a, b) => b.id - a.id || a.progress - b.progress)[0];
+    }
+
+    return candidates.sort((a, b) => b.progress - a.progress)[0];
   }
 
   #findRaygunTarget(center, range) {
@@ -1379,7 +1722,7 @@ export class GameFrameScreen {
     if (raider.health <= 0) {
       this.#addRaiderExplosion(raider);
       raider.alive = false;
-      this.#resources += raider.resources * getRaiderResourceMultiplier(this.#saveService.getSnapshot().perks);
+      this.#resources += raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER;
     }
   }
 
@@ -1427,9 +1770,56 @@ export class GameFrameScreen {
   }
 
   #getTowerCenter(tower) {
+    const surfaceRect = this.#getTowerSurfaceRect(tower);
+    if (surfaceRect) {
+      return {
+        x: surfaceRect.x + surfaceRect.width / 2,
+        y: surfaceRect.y + surfaceRect.height / 2
+      };
+    }
+
+    const footprint = getTowerFootprint(TOWER_DEFINITIONS[tower.type]);
     return {
-      x: (tower.x + 1) * CELL_SIZE,
-      y: (tower.y + 1) * CELL_SIZE
+      x: (tower.x + footprint / 2) * CELL_SIZE,
+      y: (tower.y + footprint / 2) * CELL_SIZE
+    };
+  }
+
+  #getAreaDrawRect(area) {
+    if (area.surface === "monolith") {
+      const monolith = this.#getMonolithAtCell(area.x, area.y);
+      if (monolith) return this.#getMonolithTopRect(monolith);
+    }
+
+    return {
+      x: area.x * CELL_SIZE,
+      y: area.y * CELL_SIZE,
+      width: (area.width || 2) * CELL_SIZE,
+      height: (area.height || 2) * CELL_SIZE
+    };
+  }
+
+  #getTowerSurfaceRect(tower) {
+    if (tower.surface !== "monolith" && tower.type !== "factory") return null;
+
+    const monolith = this.#getMonolithAtCell(tower.x, tower.y);
+    return monolith ? this.#getMonolithTopRect(monolith) : null;
+  }
+
+  #getMonolithAtWorldPoint(x, y) {
+    return this.#flavor.elements.find((item) => {
+      if (item.type !== "monolith") return false;
+      const rect = this.#getMonolithTopRect(item);
+      return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+    });
+  }
+
+  #getMonolithTopRect(element) {
+    return {
+      x: element.x * CELL_SIZE + MONOLITH_INSET,
+      y: element.y * CELL_SIZE - MONOLITH_LIFT,
+      width: element.width * CELL_SIZE - MONOLITH_INSET * 2,
+      height: element.height * CELL_SIZE - MONOLITH_INSET * 2
     };
   }
 
@@ -1438,11 +1828,37 @@ export class GameFrameScreen {
 
     if (this.#playerHealth <= 0) {
       this.#gameOver = true;
-      this.#running = false;
-      this.#settleRun();
-      this.#element.querySelector(".time-toggle").dataset.running = "false";
-      this.#element.querySelector(".time-toggle").setAttribute("aria-label", "Start time");
+      this.#finishRun({ victory: false });
     }
+  }
+
+  #finishRun({ victory, context = this.#context }) {
+    if (this.#runSettled || !context) return;
+
+    this.#running = false;
+    this.#waveStarted = false;
+    this.#spawning = false;
+    this.#spawnQueue = [];
+    this.#raiders = [];
+    this.#runSettled = true;
+    this.#runInitialized = false;
+    this.#saveService.clearActiveRun();
+
+    const button = this.#element?.querySelector(".time-toggle");
+    if (button) {
+      button.dataset.running = "false";
+      button.setAttribute("aria-label", "Start time");
+    }
+
+    context.navigate("game-end", {
+      rewards: {
+        victory,
+        level: this.#level,
+        coins: this.#runCoins,
+        gems: [...this.#runGems],
+        crates: [...this.#runCrates]
+      }
+    });
   }
 
   #drawRaiders() {
@@ -1549,7 +1965,7 @@ export class GameFrameScreen {
 
     this.#ctx.save();
     this.#ctx.translate(position.x, position.y);
-    this.#ctx.rotate(this.#getRaiderAngle(raider.progress));
+    this.#ctx.rotate(this.#getRaiderAngle(raider.progress) + getRaiderAssetRotationOffset(raider.type));
     this.#ctx.globalCompositeOperation = "lighter";
     if (isRaiderFrozen(raider, this.#time)) {
       this.#drawFreezeHalo(size);
@@ -1655,7 +2071,7 @@ export class GameFrameScreen {
     }
 
     if (waveDisplay) {
-      waveDisplay.textContent = this.#gameOver ? "Game Over" : `Wave ${this.#wave} / ${WAVE_COUNT}`;
+      waveDisplay.textContent = this.#gameOver ? "Game Over" : `Wave ${this.#wave} / ${this.#getWaveCount()}`;
     }
 
     this.#refreshTowerPopupAffordability();
@@ -1673,6 +2089,10 @@ export class GameFrameScreen {
       this.#drawWireTree(element);
     } else if (element.type === "boulder") {
       this.#drawWireBoulder(element);
+    } else if (element.type === "lake") {
+      this.#drawWireLake(element);
+    } else if (element.type === "monolith") {
+      this.#drawMonolith(element);
     }
   }
 
@@ -1760,6 +2180,128 @@ export class GameFrameScreen {
     this.#ctx.lineTo(radius * 0.25, -radius * 0.32);
     this.#ctx.moveTo(-radius * 0.1, radius * 0.22);
     this.#ctx.lineTo(radius * 0.42, radius * 0.08);
+    this.#ctx.stroke();
+
+    this.#ctx.restore();
+  }
+
+  #drawWireLake(element) {
+    const x = (element.x + element.width / 2) * CELL_SIZE;
+    const y = (element.y + element.height / 2) * CELL_SIZE;
+    const radiusX = Math.max(CELL_SIZE, element.width * CELL_SIZE * 0.5);
+    const radiusY = Math.max(CELL_SIZE, element.height * CELL_SIZE * 0.5);
+
+    this.#ctx.save();
+    this.#ctx.translate(x, y);
+    this.#ctx.rotate((element.rotation || 0) * 0.08);
+    this.#ctx.strokeStyle = "rgba(96, 172, 255, 0.62)";
+    this.#ctx.fillStyle = "rgba(96, 172, 255, 0.12)";
+    this.#ctx.lineWidth = 2;
+    this.#ctx.shadowColor = "rgba(96, 172, 255, 0.22)";
+    this.#ctx.shadowBlur = 12;
+
+    this.#ctx.beginPath();
+    this.#ctx.ellipse(0, 0, radiusX * 0.92, radiusY * 0.74, 0, 0, TAU);
+    this.#ctx.fill();
+    this.#ctx.stroke();
+
+    this.#ctx.setLineDash([CELL_SIZE * 0.34, CELL_SIZE * 0.24]);
+    this.#ctx.beginPath();
+    this.#ctx.ellipse(0, 0, radiusX * 0.64, radiusY * 0.42, 0, 0, TAU);
+    this.#ctx.stroke();
+    this.#ctx.restore();
+  }
+
+  #drawMonolith(element) {
+    const x = element.x * CELL_SIZE;
+    const y = element.y * CELL_SIZE;
+    const width = element.width * CELL_SIZE;
+    const height = element.height * CELL_SIZE;
+    const top = this.#getMonolithTopRect(element);
+    const topX = top.x;
+    const topY = top.y;
+    const topWidth = top.width;
+    const topHeight = top.height;
+    const baseX = x;
+    const baseY = y + MONOLITH_INSET;
+    const baseWidth = width;
+    const baseHeight = height;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "source-over";
+
+    this.#ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+    this.#ctx.fillRect(baseX + CELL_SIZE * 0.22, baseY + CELL_SIZE * 0.38, baseWidth, baseHeight);
+
+    this.#ctx.fillStyle = "rgba(15, 19, 27, 0.98)";
+    this.#ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+    this.#ctx.lineWidth = 1.8;
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(topX, topY + topHeight);
+    this.#ctx.lineTo(topX + topWidth, topY + topHeight);
+    this.#ctx.lineTo(baseX + baseWidth, baseY + baseHeight);
+    this.#ctx.lineTo(baseX, baseY + baseHeight);
+    this.#ctx.closePath();
+    this.#ctx.fill();
+    this.#ctx.stroke();
+
+    this.#ctx.fillStyle = "rgba(35, 42, 55, 0.98)";
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(topX + topWidth, topY);
+    this.#ctx.lineTo(baseX + baseWidth, baseY);
+    this.#ctx.lineTo(baseX + baseWidth, baseY + baseHeight);
+    this.#ctx.lineTo(topX + topWidth, topY + topHeight);
+    this.#ctx.closePath();
+    this.#ctx.fill();
+    this.#ctx.stroke();
+
+    this.#ctx.fillStyle = "rgba(24, 30, 41, 0.98)";
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(topX, topY);
+    this.#ctx.lineTo(baseX, baseY);
+    this.#ctx.lineTo(baseX, baseY + baseHeight);
+    this.#ctx.lineTo(topX, topY + topHeight);
+    this.#ctx.closePath();
+    this.#ctx.fill();
+    this.#ctx.stroke();
+
+    this.#ctx.fillStyle = "rgba(230, 236, 246, 0.18)";
+    this.#ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+    this.#ctx.shadowColor = "rgba(255, 255, 255, 0.28)";
+    this.#ctx.shadowBlur = 14;
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(topX, topY);
+    this.#ctx.lineTo(topX + topWidth, topY);
+    this.#ctx.lineTo(topX + topWidth, topY + topHeight);
+    this.#ctx.lineTo(topX, topY + topHeight);
+    this.#ctx.closePath();
+    this.#ctx.fill();
+    this.#ctx.stroke();
+
+    this.#ctx.shadowBlur = 0;
+    this.#ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+    for (let step = 1; step < element.width; step++) {
+      const px = topX + step * (topWidth / element.width);
+      this.#ctx.beginPath();
+      this.#ctx.moveTo(px, topY + 4);
+      this.#ctx.lineTo(px, topY + topHeight - 4);
+      this.#ctx.stroke();
+    }
+    for (let step = 1; step < element.height; step++) {
+      const py = topY + step * (topHeight / element.height);
+      this.#ctx.beginPath();
+      this.#ctx.moveTo(topX + 4, py);
+      this.#ctx.lineTo(topX + topWidth - 4, py);
+      this.#ctx.stroke();
+    }
+
+    this.#ctx.strokeStyle = "rgba(255, 255, 255, 0.52)";
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(topX + 2, topY + 2);
+    this.#ctx.lineTo(topX + topWidth - 2, topY + 2);
+    this.#ctx.lineTo(topX + topWidth - 2, topY + topHeight - 2);
+    this.#ctx.lineTo(topX + 2, topY + topHeight - 2);
+    this.#ctx.closePath();
     this.#ctx.stroke();
 
     this.#ctx.restore();
@@ -1890,26 +2432,43 @@ export class GameFrameScreen {
   }
 
   #clampCamera() {
-    const worldSize = this.#worldSize() * this.#camera.scale;
+    const worldWidth = this.#worldWidth() * this.#camera.scale;
+    const worldHeight = this.#worldHeight() * this.#camera.scale;
     const width = window.innerWidth;
     const height = window.innerHeight;
     const margin = 80;
 
-    if (worldSize <= width) {
-      this.#camera.x = (width - worldSize) / 2;
+    if (worldWidth <= width) {
+      this.#camera.x = (width - worldWidth) / 2;
     } else {
-      this.#camera.x = clamp(this.#camera.x, width - worldSize - margin, margin);
+      this.#camera.x = clamp(this.#camera.x, width - worldWidth - margin, margin);
     }
 
-    if (worldSize <= height) {
-      this.#camera.y = (height - worldSize) / 2;
+    if (worldHeight <= height) {
+      this.#camera.y = (height - worldHeight) / 2;
     } else {
-      this.#camera.y = clamp(this.#camera.y, height - worldSize - margin, margin);
+      this.#camera.y = clamp(this.#camera.y, height - worldHeight - margin, margin);
     }
   }
 
   #worldSize() {
-    return FIRST_TIER_GRID_SIZE * CELL_SIZE;
+    return Math.max(this.#worldWidth(), this.#worldHeight());
+  }
+
+  #worldWidth() {
+    return this.#gridWidth() * CELL_SIZE;
+  }
+
+  #worldHeight() {
+    return this.#gridHeight() * CELL_SIZE;
+  }
+
+  #gridWidth() {
+    return this.#levelDefinition?.dimensions?.width || FIRST_TIER_GRID_SIZE;
+  }
+
+  #gridHeight() {
+    return this.#levelDefinition?.dimensions?.height || FIRST_TIER_GRID_SIZE;
   }
 }
 
@@ -1975,8 +2534,112 @@ function getRarityAssetName(asset, rarity) {
   return `${asset}_${rarity}`;
 }
 
+function getTowerAssetKey(definition, rarity) {
+  return definition.usesRarityAssets === false ? definition.asset : getRarityAssetName(definition.asset, rarity);
+}
+
+function getTowerFootprint(definition) {
+  return definition?.footprint || 2;
+}
+
 function getEffectiveRaiderSpeed(raider) {
   return raider.speed * (raider.freezeSpeedMultiplier || 1);
+}
+
+function createTierTwoWaveDefinitions(levelOffset) {
+  const bump = Math.max(0, levelOffset);
+  return {
+    1: [
+      { type: "walker", rarity: "uncommon", count: 14 + bump * 2 },
+      { type: "walker", rarity: "rare", count: 2 + bump }
+    ],
+    2: [
+      { type: "walker", rarity: "uncommon", count: 18 + bump * 2 },
+      { type: "fastcar", rarity: "common", count: 3 + bump }
+    ],
+    3: [
+      { type: "walker", rarity: "rare", count: 10 + bump * 2 },
+      { type: "car", rarity: "uncommon", count: 2 + bump }
+    ],
+    4: [
+      { type: "walker", rarity: "uncommon", count: 24 + bump * 3 },
+      { type: "fastcar", rarity: "uncommon", count: 4 + bump }
+    ],
+    5: [
+      { type: "car", rarity: "uncommon", count: 5 + bump },
+      { type: "walker", rarity: "rare", count: 8 + bump * 2 }
+    ],
+    6: [
+      { type: "walker", rarity: "rare", count: 18 + bump * 2 },
+      { type: "fastcar", rarity: "uncommon", count: 5 + bump }
+    ],
+    7: [
+      { type: "walker", rarity: "epic", count: 3 + bump },
+      { type: "car", rarity: "uncommon", count: 5 + bump }
+    ],
+    8: [
+      { type: "fastcar", rarity: "rare", count: 4 + bump },
+      { type: "walker", rarity: "rare", count: 14 + bump * 2 }
+    ],
+    9: [
+      { type: "car", rarity: "rare", count: 4 + bump },
+      { type: "walker", rarity: "epic", count: 4 + bump }
+    ],
+    10: [
+      { type: "heavy_transport", rarity: "common", count: 2 + bump },
+      { type: "fastcar", rarity: "uncommon", count: 6 + bump }
+    ],
+    11: [
+      { type: "walker", rarity: "rare", count: 24 + bump * 3 },
+      { type: "car", rarity: "rare", count: 4 + bump }
+    ],
+    12: [
+      { type: "fastcar", rarity: "rare", count: 6 + bump },
+      { type: "walker", rarity: "epic", count: 6 + bump }
+    ],
+    13: [
+      { type: "car", rarity: "epic", count: 2 + bump },
+      { type: "walker", rarity: "rare", count: 18 + bump * 2 }
+    ],
+    14: [
+      { type: "heavy_transport", rarity: "uncommon", count: 2 + bump },
+      { type: "fastcar", rarity: "rare", count: 6 + bump }
+    ],
+    15: [
+      { type: "walker", rarity: "epic", count: 10 + bump },
+      { type: "car", rarity: "rare", count: 5 + bump }
+    ],
+    16: [
+      { type: "fastcar", rarity: "rare", count: 9 + bump },
+      { type: "car", rarity: "epic", count: 3 + bump }
+    ],
+    17: [
+      { type: "heavy_transport", rarity: "uncommon", count: 3 + bump },
+      { type: "walker", rarity: "epic", count: 8 + bump }
+    ],
+    18: [
+      { type: "car", rarity: "epic", count: 4 + bump },
+      { type: "fastcar", rarity: "rare", count: 8 + bump }
+    ],
+    19: [
+      { type: "walker", rarity: "legendary", count: 3 + bump },
+      { type: "heavy_transport", rarity: "rare", count: 2 + bump },
+      { type: "fastcar", rarity: "rare", count: 7 + bump }
+    ],
+    20: [
+      { type: "heavy_transport", rarity: "rare", count: 3 + bump },
+      { type: "car", rarity: "epic", count: 5 + bump },
+      { type: "walker", rarity: "legendary", count: 4 + bump }
+    ]
+  };
+}
+
+function getRaiderAssetRotationOffset(type) {
+  return type === "heavy_transport" ? -Math.PI / 2 : 0;
+}
+
+function getRaiderStrength(raider) {
+  return Math.max(0, raider.health) + Math.max(0, raider.shield);
 }
 
 function isRaiderFrozen(raider, time) {

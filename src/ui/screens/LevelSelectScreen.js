@@ -26,13 +26,17 @@ export class LevelSelectScreen {
             ${Array.from({ length: TOTAL_LEVELS }, (_, index) => {
               const level = index + 1;
               const locked = level > save.highestUnlockedLevel;
+              const completed = save.completedLevels?.includes(level);
               return `
                 <button
-                  class="level-button ${getLevelTone(level)}${locked ? " locked" : ""}"
+                  class="level-button ${getLevelTone(level)}${locked ? " locked" : ""}${completed ? " completed" : ""}"
                   type="button"
                   data-level="${level}"
                   ${locked ? "aria-disabled=\"true\"" : ""}
-                >${level}</button>
+                >
+                  <span>${level}</span>
+                  ${completed ? `<span class="level-check" aria-hidden="true">✓</span>` : ""}
+                </button>
               `;
             }).join("")}
           </div>

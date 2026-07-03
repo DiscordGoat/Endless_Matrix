@@ -1,11 +1,13 @@
 import {
   BASE_GEM_DROP_CHANCE,
+  BASE_CRATE_DROP_CHANCE,
+  formatDecimalPercent,
   formatPercent,
   getCoinYieldMultiplier,
+  getCrateDropChance,
   getGemDropChance,
   getPerkRarity,
   getPerkRarityForProgress,
-  getRaiderResourceMultiplier,
   PERK_DEFINITIONS,
   SHOP_CELL_COUNT,
   toRoman
@@ -187,22 +189,12 @@ export class ShopScreen {
   }
 
   #getEmptyBonus(perkId) {
-    if (perkId === "looting") return "+0% Raider Resources";
     if (perkId === "gilded") return "+0% Coin Yield";
+    if (perkId === "cratehoarder") return "+0% Crate Chance";
     return "+0% Gem Chance";
   }
 
   #getPerkTotals(perkId, perks) {
-    if (perkId === "looting") {
-      return {
-        label: "Total Raider Resources",
-        base: "Base Raider Resources: 100%",
-        current: getRaiderResourceMultiplier(perks),
-        next: (nextPerks) => getRaiderResourceMultiplier(nextPerks),
-        format: (value) => formatPercent(value)
-      };
-    }
-
     if (perkId === "gilded") {
       return {
         label: "Total Coin Yield",
@@ -213,12 +205,22 @@ export class ShopScreen {
       };
     }
 
+    if (perkId === "cratehoarder") {
+      return {
+        label: "Total Crate Chance",
+        base: `Base Crate Chance: ${formatPercent(BASE_CRATE_DROP_CHANCE)}`,
+        current: getCrateDropChance(perks),
+        next: (nextPerks) => getCrateDropChance(nextPerks),
+        format: (value) => formatDecimalPercent(value)
+      };
+    }
+
     return {
       label: "Total Gem Chance",
       base: `Base Gem Chance: ${formatPercent(BASE_GEM_DROP_CHANCE)}`,
       current: getGemDropChance(perks),
       next: (nextPerks) => getGemDropChance(nextPerks),
-      format: (value) => formatPercent(value)
+      format: (value) => formatDecimalPercent(value)
     };
   }
 

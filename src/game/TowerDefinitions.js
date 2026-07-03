@@ -17,6 +17,26 @@ export const RARITY_COLORS = {
 };
 
 export const TOWER_DEFINITIONS = {
+  factory: {
+    id: "factory",
+    label: "Factory",
+    asset: "factory",
+    footprint: 4,
+    unlockCosts: {
+      common: 100,
+      uncommon: 200,
+      rare: 400,
+      epic: 800,
+      legendary: 1600
+    },
+    rarities: {
+      common: { placementCost: 50, rangeCells: 0, resourceYield: 10, attackInterval: 30.0 },
+      uncommon: { placementCost: 100, rangeCells: 0, resourceYield: 20, attackInterval: 30.0 },
+      rare: { placementCost: 200, rangeCells: 0, resourceYield: 30, attackInterval: 30.0 },
+      epic: { placementCost: 400, rangeCells: 0, resourceYield: 40, attackInterval: 30.0 },
+      legendary: { placementCost: 800, rangeCells: 0, resourceYield: 50, attackInterval: 30.0 }
+    }
+  },
   minigun: {
     id: "minigun",
     label: "Minigun",
@@ -70,11 +90,11 @@ export const TOWER_DEFINITIONS = {
       legendary: 1600
     },
     rarities: {
-      common: { placementCost: 30, rangeCells: 3, damage: 10, attackInterval: 2.0 },
-      uncommon: { placementCost: 60, rangeCells: 4, damage: 20, attackInterval: 1.8 },
-      rare: { placementCost: 120, rangeCells: 5, damage: 30, attackInterval: 1.6 },
-      epic: { placementCost: 240, rangeCells: 6, damage: 40, attackInterval: 1.4 },
-      legendary: { placementCost: 480, rangeCells: 12, damage: 50, attackInterval: 1.0 }
+      common: { placementCost: 10, rangeCells: 3, damage: 10, attackInterval: 2.0 },
+      uncommon: { placementCost: 20, rangeCells: 4, damage: 20, attackInterval: 1.8 },
+      rare: { placementCost: 40, rangeCells: 5, damage: 30, attackInterval: 1.6 },
+      epic: { placementCost: 80, rangeCells: 6, damage: 40, attackInterval: 1.4 },
+      legendary: { placementCost: 160, rangeCells: 12, damage: 50, attackInterval: 1.0 }
     }
   }
 };

@@ -100,7 +100,7 @@ export const RAIDER_TYPES = {
         tint: "purple",
         health: 4000,
         shield: 4000,
-        speed: 200,
+        speed: 100,
         resources: 5,
         damage: 40
       },
@@ -110,7 +110,7 @@ export const RAIDER_TYPES = {
         tint: "gold",
         health: 8000,
         shield: 8000,
-        speed: 200,
+        speed: 100,
         resources: 5,
         damage: 80
       }

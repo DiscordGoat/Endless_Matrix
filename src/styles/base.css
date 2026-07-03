@@ -346,6 +346,10 @@ h1 {
 .stat-gems { color: var(--tone-green); }
 .stat-crates { color: var(--tone-orange); }
 
+.stat-cell-counting {
+  animation: statCountPulse 220ms ease-out infinite alternate;
+}
+
 .hub-title-row,
 .screen-header {
   min-height: 58px;
@@ -449,6 +453,7 @@ h1 {
 }
 
 .level-button {
+  position: relative;
   aspect-ratio: 0.78;
   border: 1px solid currentColor;
   background: rgba(255, 255, 255, 0.015);
@@ -461,6 +466,20 @@ h1 {
     background 140ms ease,
     opacity 140ms ease,
     transform 140ms ease;
+}
+
+.level-button span:first-child {
+  display: block;
+}
+
+.level-check {
+  position: absolute;
+  right: 6px;
+  top: 5px;
+  color: var(--level-green);
+  font-size: 0.8rem;
+  line-height: 1;
+  text-shadow: 0 0 10px rgba(144, 222, 120, 0.72);
 }
 
 .level-button:hover,
@@ -554,9 +573,9 @@ h1 {
 .tower-card img {
   width: 58px;
   height: 58px;
-  object-fit: contain;
   justify-self: center;
   filter: drop-shadow(0 0 10px currentColor);
+  object-fit: contain;
 }
 
 .tower-card:hover,
@@ -1404,6 +1423,43 @@ h1 {
   gap: 9px;
 }
 
+.target-priority-group {
+  display: grid;
+  gap: 7px;
+}
+
+.target-priority-label {
+  color: rgba(224, 252, 255, 0.7);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.target-priority-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.target-priority-button {
+  min-height: 34px;
+  border: 1px solid rgba(170, 244, 255, 0.34);
+  background: rgba(255, 255, 255, 0.018);
+  color: rgba(224, 252, 255, 0.78);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.target-priority-button.active {
+  border-color: rgba(144, 222, 120, 0.82);
+  background: rgba(144, 222, 120, 0.1);
+  color: rgba(218, 255, 210, 0.98);
+}
+
 .tower-popup-button {
   min-height: 48px;
   border: 1px solid rgba(170, 244, 255, 0.48);
@@ -1425,6 +1481,139 @@ h1 {
 .tower-popup-button:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+.game-end-screen {
+  padding: max(16px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+}
+
+.game-end-shell {
+  width: min(100%, 540px);
+  min-height: min(720px, calc(100svh - 32px));
+  border: 1px solid var(--line);
+  background: rgba(2, 5, 10, 0.82);
+  box-shadow: 0 26px 80px var(--shadow);
+  padding: clamp(18px, 5vw, 34px);
+  display: grid;
+  grid-template-rows: auto auto minmax(150px, 1fr) auto;
+  align-items: start;
+  gap: 22px;
+}
+
+.game-end-stamp {
+  justify-self: center;
+  min-width: min(100%, 360px);
+  border: 3px solid currentColor;
+  padding: 14px 22px;
+  color: var(--line-strong);
+  font-size: clamp(2rem, 12vw, 4.8rem);
+  font-weight: 950;
+  line-height: 0.9;
+  text-align: center;
+  text-transform: uppercase;
+  transform: rotate(-5deg);
+  animation: endStamp 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.game-end-stamp.victory {
+  color: var(--accent);
+}
+
+.game-end-stamp.defeat {
+  color: var(--danger);
+}
+
+.game-end-ledger {
+  display: grid;
+  gap: 10px;
+}
+
+.game-end-row {
+  min-height: 58px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.018);
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--line-strong);
+  font-size: clamp(0.9rem, 4vw, 1.12rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  animation: rewardRowPop 240ms ease-out both;
+}
+
+.game-end-row[data-reward-row="coins"] strong {
+  color: var(--tone-gold);
+}
+
+.game-end-row[data-reward-row="gems"] strong {
+  color: var(--tone-green);
+}
+
+.game-end-row[data-reward-row="crates"] strong {
+  color: var(--tone-orange);
+}
+
+.game-end-row.is-hidden,
+.game-end-continue.is-hidden {
+  display: none;
+}
+
+.game-end-items {
+  min-height: 154px;
+  display: grid;
+  place-items: center;
+}
+
+.game-end-items.is-clearing {
+  animation: endItemClear 180ms ease-in both;
+}
+
+.game-end-item {
+  width: min(230px, 66vw);
+  min-height: 146px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--line-strong);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+  text-transform: uppercase;
+  animation: endItemPop 210ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.game-end-item img {
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px currentColor);
+}
+
+.game-end-item span {
+  width: 100%;
+  padding: 0 10px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.game-end-item.rarity-common { color: var(--level-white); }
+.game-end-item.rarity-uncommon { color: var(--level-green); }
+.game-end-item.rarity-rare { color: var(--level-blue); }
+.game-end-item.rarity-epic { color: var(--level-purple); }
+.game-end-item.rarity-legendary { color: var(--level-gold); }
+.game-end-item.crate-bronze { color: rgba(205, 127, 50, 0.95); }
+.game-end-item.crate-silver { color: rgba(198, 214, 226, 0.95); }
+.game-end-item.crate-gold { color: rgba(255, 207, 79, 0.95); }
+
+.game-end-continue {
+  justify-self: stretch;
+  min-height: 56px;
+  animation: rewardRowPop 240ms ease-out both;
 }
 
 @media (max-width: 390px) {
@@ -1450,6 +1639,71 @@ h1 {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes statCountPulse {
+  from {
+    text-shadow: none;
+    transform: scale(1);
+  }
+
+  to {
+    text-shadow: 0 0 14px currentColor;
+    transform: scale(1.025);
+  }
+}
+
+@keyframes endStamp {
+  0% {
+    opacity: 0;
+    transform: translateY(-36px) scale(1.28) rotate(-9deg);
+  }
+
+  58% {
+    opacity: 1;
+    transform: translateY(3px) scale(0.94) rotate(-5deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(-5deg);
+  }
+}
+
+@keyframes rewardRowPop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes endItemPop {
+  0% {
+    opacity: 0;
+    transform: translateY(26px) scale(0.68) rotate(-5deg);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.06) rotate(2deg);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0);
+  }
+}
+
+@keyframes endItemClear {
+  to {
+    opacity: 0;
+    transform: scale(0.9);
   }
 }
 
