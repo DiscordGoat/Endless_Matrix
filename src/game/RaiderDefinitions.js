@@ -233,6 +233,66 @@ export const RAIDER_TYPES = {
         damage: 50
       }
     }
+  },
+  jet: {
+    id: "jet",
+    label: "Jet Raider",
+    frames: ["jet"],
+    frameDuration: 1,
+    assetScale: 1.55,
+    flying: true,
+    rarities: {
+      common: {
+        id: "common",
+        label: "Common",
+        tint: "none",
+        health: 100,
+        shield: 0,
+        speed: 600,
+        resources: 10,
+        damage: 30
+      },
+      uncommon: {
+        id: "uncommon",
+        label: "Uncommon",
+        tint: "green",
+        health: 200,
+        shield: 0,
+        speed: 600,
+        resources: 10,
+        damage: 30
+      },
+      rare: {
+        id: "rare",
+        label: "Rare",
+        tint: "blue",
+        health: 300,
+        shield: 0,
+        speed: 600,
+        resources: 10,
+        damage: 30
+      },
+      epic: {
+        id: "epic",
+        label: "Epic",
+        tint: "purple",
+        health: 400,
+        shield: 0,
+        speed: 600,
+        resources: 10,
+        damage: 30
+      },
+      legendary: {
+        id: "legendary",
+        label: "Legendary",
+        tint: "gold",
+        health: 500,
+        shield: 0,
+        speed: 600,
+        resources: 10,
+        damage: 30
+      }
+    }
   }
 };
 
@@ -240,7 +300,7 @@ export function createRaider({ type, rarity, id }) {
   const definition = RAIDER_TYPES[type];
   const stats = definition.rarities[rarity];
 
-  return {
+  const raider = {
     id,
     type,
     rarity,
@@ -254,4 +314,11 @@ export function createRaider({ type, rarity, id }) {
     progress: 0,
     alive: true
   };
+
+  if (definition.flying) {
+    raider.flightPhase = "circling";
+    raider.flightTime = 0;
+  }
+
+  return raider;
 }

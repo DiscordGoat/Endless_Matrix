@@ -14,25 +14,32 @@ const MONOLITH_INSET = CELL_SIZE * 0.18;
 const MIN_ZOOM = 0.38;
 const MAX_ZOOM = 2.4;
 const TAU = Math.PI * 2;
-const RAIDER_ASSET_NAMES = Array.from(new Set(Object.values(RAIDER_TYPES).flatMap((raider) => raider.frames)));
 const ASSET_SOURCES = {
   tree: `${import.meta.env.BASE_URL}assets/scenery/tree.png`,
   boulder: `${import.meta.env.BASE_URL}assets/scenery/boulder.png`,
   ...Object.fromEntries(Object.values(TOWER_DEFINITIONS).flatMap((tower) => {
-    const baseAsset = [[tower.asset, `${import.meta.env.BASE_URL}assets/towers/${tower.asset}.png`]];
-    if (tower.usesRarityAssets === false) return baseAsset;
-    return [
-      ...baseAsset,
+    const assetNames = [tower.asset, tower.emptyAsset, tower.missileAsset].filter(Boolean);
+    const baseAssets = assetNames.map((asset) => [asset, `${import.meta.env.BASE_URL}assets/towers/${asset}.png`]);
+    if (tower.usesRarityAssets === false) return baseAssets;
+    return assetNames.flatMap((asset) => [
+      [asset, `${import.meta.env.BASE_URL}assets/towers/${asset}.png`],
       ...RARITIES.map((rarity) => {
-        const key = getRarityAssetName(tower.asset, rarity);
+        const key = getRarityAssetName(asset, rarity);
         return [key, `${import.meta.env.BASE_URL}assets/towers/${key}.png`];
       })
-    ];
+    ]);
   })),
-  ...Object.fromEntries(RAIDER_ASSET_NAMES.flatMap((asset) => (
-    RARITIES.map((rarity) => {
-      const key = getRarityAssetName(asset, rarity);
-      return [key, `${import.meta.env.BASE_URL}assets/raiders/${key}.png`];
+  ...Object.fromEntries(Object.values(RAIDER_TYPES).flatMap((raider) => (
+    raider.frames.flatMap((asset) => {
+      const baseAsset = [[asset, `${import.meta.env.BASE_URL}assets/raiders/${asset}.png`]];
+      if (raider.usesRarityAssets === false) return baseAsset;
+      return [
+        ...baseAsset,
+        ...RARITIES.map((rarity) => {
+          const key = getRarityAssetName(asset, rarity);
+          return [key, `${import.meta.env.BASE_URL}assets/raiders/${key}.png`];
+        })
+      ];
     })
   )))
 };
@@ -48,8 +55,12 @@ const TARGET_PRIORITIES = [
   { id: "first", label: "First" },
   { id: "last", label: "Last" }
 ];
+const DEVELOPER_COMMANDS = ["spawnraider", "setresources"];
 const WAVE_SPAWN_INTERVAL = 0.45;
 const WAVE_SPAWN_SPACING_MULTIPLIER = 1.6;
+const JET_ORBIT_CIRCUITS = 3;
+const JET_ORBIT_DURATION = 10;
+const JET_ORBIT_RADIUS_CELLS = 600 / 100 * JET_ORBIT_DURATION / TAU;
 const RAIDER_SPAWN_INTERVALS = {
   walker: {
     common: 0.42,
@@ -78,6 +89,13 @@ const RAIDER_SPAWN_INTERVALS = {
     rare: 1.85,
     epic: 1.95,
     legendary: 2.05
+  },
+  jet: {
+    common: 1.65,
+    uncommon: 1.65,
+    rare: 1.65,
+    epic: 1.65,
+    legendary: 1.65
   }
 };
 const MAX_TOWER_SHOTS_PER_UPDATE = 32;
@@ -328,6 +346,23 @@ export class GameFrameScreen {
         <button class="speed-button${this.#gameSpeed === 16 ? " active" : ""}" type="button" data-speed="16">16x</button>
       </div>
       <button class="gameframe-back" type="button">Back</button>
+      <section class="developer-console" data-developer-console>
+        <form class="developer-console-form" data-developer-console-form>
+          <span class="developer-console-prompt" aria-hidden="true">&gt;</span>
+          <input
+            class="developer-console-input"
+            data-developer-console-input
+            type="text"
+            list="developer-console-suggestions"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-label="Developer command"
+          >
+          <datalist id="developer-console-suggestions" data-developer-console-suggestions></datalist>
+        </form>
+        <div class="developer-console-status" data-developer-console-status></div>
+      </section>
       <section class="tower-popup" data-tower-popup>
         <div class="tower-popup-title" data-tower-popup-title>Tower</div>
         <div class="tower-popup-actions" data-placement-panel></div>
@@ -371,6 +406,13 @@ export class GameFrameScreen {
     });
     screen.querySelector("[data-upgrade-tower]").addEventListener("click", () => this.#upgradeSelectedTower());
     screen.querySelector("[data-recycle-tower]").addEventListener("click", () => this.#recycleSelectedTower());
+    screen.querySelector("[data-developer-console-form]").addEventListener("submit", (event) => {
+      event.preventDefault();
+      this.#submitDeveloperCommand();
+    });
+    screen.querySelector("[data-developer-console-input]").addEventListener("input", () => {
+      this.#refreshDeveloperSuggestions();
+    });
 
     this.#gradientSeed = createGradientSeed();
     this.#loadAssets();
@@ -387,6 +429,7 @@ export class GameFrameScreen {
     this.#saveActiveRun();
     cancelAnimationFrame(this.#animationFrame);
     window.removeEventListener("resize", this.#resize);
+    window.removeEventListener("keydown", this.#handleKeyDown);
     this.#pointers.clear();
     this.#element = null;
     this.#canvas = null;
@@ -400,6 +443,7 @@ export class GameFrameScreen {
     this.#canvas.addEventListener("pointerup", this.#handlePointerEnd);
     this.#canvas.addEventListener("pointercancel", this.#handlePointerEnd);
     this.#canvas.addEventListener("wheel", this.#handleWheel, { passive: false });
+    window.addEventListener("keydown", this.#handleKeyDown);
   }
 
   #resize = () => {
@@ -723,6 +767,139 @@ export class GameFrameScreen {
     this.#zoomAt(event.clientX, event.clientY, zoomFactor);
   };
 
+  #handleKeyDown = (event) => {
+    const consoleInput = this.#element?.querySelector("[data-developer-console-input]");
+    const consoleOpen = this.#element?.querySelector("[data-developer-console]")?.classList.contains("active");
+
+    if (event.key === "`" || event.key === "~") {
+      event.preventDefault();
+      this.#toggleDeveloperConsole();
+      return;
+    }
+
+    if (consoleOpen && event.key === "Escape") {
+      event.preventDefault();
+      this.#closeDeveloperConsole();
+      return;
+    }
+
+    if (event.target === consoleInput) return;
+    if (event.key !== "1" || event.repeat || this.#gameOver) return;
+
+    this.#spawnRaider("jet", "common");
+    this.#saveActiveRun();
+    this.#requestDraw();
+  };
+
+  #toggleDeveloperConsole() {
+    const consoleElement = this.#element?.querySelector("[data-developer-console]");
+    if (!consoleElement) return;
+
+    if (consoleElement.classList.contains("active")) {
+      this.#closeDeveloperConsole();
+    } else {
+      this.#openDeveloperConsole();
+    }
+  }
+
+  #openDeveloperConsole() {
+    const consoleElement = this.#element?.querySelector("[data-developer-console]");
+    const input = this.#element?.querySelector("[data-developer-console-input]");
+    if (!consoleElement || !input) return;
+
+    consoleElement.classList.add("active");
+    this.#refreshDeveloperSuggestions();
+    requestAnimationFrame(() => input.focus());
+  }
+
+  #closeDeveloperConsole() {
+    const consoleElement = this.#element?.querySelector("[data-developer-console]");
+    const input = this.#element?.querySelector("[data-developer-console-input]");
+    if (!consoleElement || !input) return;
+
+    consoleElement.classList.remove("active");
+    input.blur();
+  }
+
+  #submitDeveloperCommand() {
+    const input = this.#element?.querySelector("[data-developer-console-input]");
+    if (!input) return;
+
+    const command = input.value.trim();
+    if (!command) return;
+
+    const [name, ...args] = command.split(/\s+/);
+    const normalizedName = name.toLowerCase();
+
+    if (normalizedName === "spawnraider") {
+      this.#runSpawnRaiderCommand(args);
+    } else if (normalizedName === "setresources") {
+      this.#runSetResourcesCommand(args);
+    } else {
+      this.#setDeveloperConsoleStatus(`Unknown command: ${name}`, false);
+      return;
+    }
+
+    input.value = "";
+    this.#refreshDeveloperSuggestions();
+  }
+
+  #runSpawnRaiderCommand(args) {
+    const type = args[0]?.toLowerCase();
+    if (!type || !RAIDER_TYPES[type]) {
+      this.#setDeveloperConsoleStatus(`Use: spawnraider ${Object.keys(RAIDER_TYPES).join("|")}`, false);
+      return;
+    }
+
+    this.#spawnRaider(type, "common");
+    this.#setDeveloperConsoleStatus(`Spawned ${RAIDER_TYPES[type].label}`, true);
+    this.#saveActiveRun();
+    this.#requestDraw();
+  }
+
+  #runSetResourcesCommand(args) {
+    const amount = Number(args[0]);
+    if (!Number.isInteger(amount) || amount < 0) {
+      this.#setDeveloperConsoleStatus("Use: setresources <int>", false);
+      return;
+    }
+
+    this.#resources = amount;
+    this.#setDeveloperConsoleStatus(`Resources set to ${amount}`, true);
+    this.#syncRunHud();
+    this.#saveActiveRun();
+    this.#requestDraw();
+  }
+
+  #refreshDeveloperSuggestions() {
+    const input = this.#element?.querySelector("[data-developer-console-input]");
+    const datalist = this.#element?.querySelector("[data-developer-console-suggestions]");
+    if (!input || !datalist) return;
+
+    const value = input.value.trim().toLowerCase();
+    const [name] = value.split(/\s+/);
+    const suggestions = name === "spawnraider" || value.startsWith("spawnraider ")
+      ? Object.keys(RAIDER_TYPES).map((type) => `spawnraider ${type}`)
+      : [
+        ...DEVELOPER_COMMANDS,
+        ...Object.keys(RAIDER_TYPES).map((type) => `spawnraider ${type}`),
+        "setresources 100"
+      ];
+
+    datalist.innerHTML = suggestions
+      .filter((suggestion) => suggestion.startsWith(value))
+      .map((suggestion) => `<option value="${suggestion}"></option>`)
+      .join("");
+  }
+
+  #setDeveloperConsoleStatus(message, success) {
+    const status = this.#element?.querySelector("[data-developer-console-status]");
+    if (!status) return;
+
+    status.textContent = message;
+    status.dataset.tone = success ? "success" : "error";
+  }
+
   #zoomAt(clientX, clientY, factor) {
     const previousScale = this.#camera.scale;
     const nextScale = clamp(previousScale * factor, MIN_ZOOM, MAX_ZOOM);
@@ -959,7 +1136,8 @@ export class GameFrameScreen {
       const definition = TOWER_DEFINITIONS[tower.type];
       const footprint = getTowerFootprint(definition);
       const center = this.#getTowerCenter(tower);
-      const image = this.#assets.get(getTowerAssetKey(definition, tower.rarity));
+      const assetKey = getTowerDrawAssetKey(definition, tower);
+      const image = this.#assets.get(assetKey);
       const surfaceRect = this.#getTowerSurfaceRect(tower);
       const size = surfaceRect
         ? Math.min(surfaceRect.width, surfaceRect.height) * 1.05
@@ -1000,13 +1178,21 @@ export class GameFrameScreen {
 
   #drawEffects() {
     const now = performance.now();
-    this.#effects = this.#effects.filter((effect) => now - effect.startedAt < effect.duration);
+    this.#effects = this.#effects.filter((effect) => {
+      if (effect.done) return false;
+      if (effect.type === "missile") return true;
+      return now - effect.startedAt < effect.duration;
+    });
 
     for (const effect of this.#effects) {
-      const progress = clamp((now - effect.startedAt) / effect.duration, 0, 1);
+      const progress = effect.type === "missile"
+        ? clamp(effect.elapsed / effect.durationSeconds, 0, 1)
+        : clamp((now - effect.startedAt) / effect.duration, 0, 1);
 
       if (effect.type === "projectile") {
         this.#drawProjectileEffect(effect, progress);
+      } else if (effect.type === "missile") {
+        this.#drawMissileEffect(effect, progress);
       } else if (effect.type === "muzzle") {
         this.#drawMuzzleEffect(effect, progress);
       } else if (effect.type === "explosion") {
@@ -1065,6 +1251,42 @@ export class GameFrameScreen {
     this.#ctx.arc(effect.x, effect.y, radius, 0, TAU);
     this.#ctx.fill();
     this.#ctx.stroke();
+    this.#ctx.restore();
+  }
+
+  #drawMissileEffect(effect, progress) {
+    const target = this.#raiders.find((raider) => raider.id === effect.targetId && raider.alive);
+    const to = target ? this.#getRaiderPosition(target) : effect.lastTargetPosition;
+    const eased = progress < 1 ? 1 - Math.pow(1 - progress, 2.4) : 1;
+    const x = effect.from.x + (to.x - effect.from.x) * eased;
+    const y = effect.from.y + (to.y - effect.from.y) * eased;
+    const angle = Math.atan2(to.y - effect.from.y, to.x - effect.from.x) + Math.PI / 2;
+    const image = this.#assets.get(getRarityAssetName(effect.asset, effect.rarity));
+    const size = CELL_SIZE * 0.52;
+
+    effect.lastTargetPosition = { x: to.x, y: to.y };
+
+    this.#ctx.save();
+    this.#ctx.translate(x, y);
+    this.#ctx.rotate(angle);
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.shadowColor = effect.color;
+    this.#ctx.shadowBlur = 14;
+
+    if (image?.complete && image.naturalWidth > 0) {
+      this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
+    } else {
+      this.#ctx.strokeStyle = effect.color;
+      this.#ctx.lineWidth = 2;
+      this.#ctx.beginPath();
+      this.#ctx.moveTo(0, -size * 0.5);
+      this.#ctx.lineTo(size * 0.2, size * 0.28);
+      this.#ctx.lineTo(0, size * 0.5);
+      this.#ctx.lineTo(-size * 0.2, size * 0.28);
+      this.#ctx.closePath();
+      this.#ctx.stroke();
+    }
+
     this.#ctx.restore();
   }
 
@@ -1282,7 +1504,7 @@ export class GameFrameScreen {
 
     for (const raider of this.#raiders) {
       if (!raider.alive) continue;
-      const position = this.#getRoadPosition(raider.progress);
+      const position = this.#getRaiderPosition(raider);
       const distance = Math.hypot(world.x - position.x, world.y - position.y);
       const isBetterTie = best && distance === bestDistance && raider.progress > best.progress;
 
@@ -1461,7 +1683,7 @@ export class GameFrameScreen {
     this.#resources -= cost;
     tower.rarity = nextRarity;
     tower.spent += cost;
-    if (tower.type === "factory") {
+    if (tower.type === "factory" || tower.type === "antiair") {
       tower.cooldown = Math.min(tower.cooldown, TOWER_DEFINITIONS[tower.type].rarities[nextRarity].attackInterval);
     }
     this.#openTowerPanel(tower);
@@ -1489,6 +1711,7 @@ export class GameFrameScreen {
   #updateWave(dt) {
     this.#updateSpawning(dt);
     this.#updateRaiders(dt);
+    this.#updateMissiles(dt);
     this.#updateTowers(dt);
     this.#checkWaveEnd();
     this.#syncRunHud();
@@ -1575,6 +1798,16 @@ export class GameFrameScreen {
         raider.freezeSpeedMultiplier = 1;
       }
 
+      if (isFlyingRaider(raider) && raider.flightPhase === "circling") {
+        raider.flightTime = (Number(raider.flightTime) || 0) + dt;
+
+        if (raider.flightTime >= JET_ORBIT_CIRCUITS * JET_ORBIT_DURATION) {
+          raider.flightPhase = "road";
+          raider.progress = 0;
+        }
+        continue;
+      }
+
       raider.progress += (getEffectiveRaiderSpeed(raider) / 100) * dt;
 
       if (raider.progress >= endProgress) {
@@ -1596,6 +1829,19 @@ export class GameFrameScreen {
         continue;
       }
 
+      if (tower.type === "antiair") {
+        if (tower.cooldown <= 0) {
+          const target = this.#findTowerTarget(tower);
+          if (target) {
+            this.#fireAntiAirMissile(tower, target, stats);
+            tower.cooldown = stats.attackInterval;
+          } else {
+            tower.cooldown = 0;
+          }
+        }
+        continue;
+      }
+
       let shots = 0;
       while (tower.cooldown <= 0 && shots < MAX_TOWER_SHOTS_PER_UPDATE) {
         const target = this.#findTowerTarget(tower);
@@ -1605,7 +1851,7 @@ export class GameFrameScreen {
         }
 
         const center = this.#getTowerCenter(tower);
-        const targetPosition = this.#getRoadPosition(target.progress);
+        const targetPosition = this.#getRaiderPosition(target);
         tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
         this.#addTowerShotEffects(tower, center, targetPosition);
         this.#damageRaider(target, stats.damage, tower);
@@ -1619,6 +1865,46 @@ export class GameFrameScreen {
       if (shots >= MAX_TOWER_SHOTS_PER_UPDATE) {
         tower.cooldown = Math.max(0, tower.cooldown);
       }
+    }
+
+    this.#raiders = this.#raiders.filter((raider) => raider.alive);
+  }
+
+  #updateMissiles(dt) {
+    for (const effect of this.#effects) {
+      if (effect.type !== "missile" || effect.done) continue;
+
+      effect.elapsed += dt;
+      const target = this.#raiders.find((raider) => raider.id === effect.targetId && raider.alive);
+      if (target) {
+        effect.lastTargetPosition = this.#getRaiderPosition(target);
+      }
+
+      if (effect.elapsed < effect.durationSeconds) continue;
+
+      if (target) {
+        const impact = this.#getRaiderPosition(target);
+        this.#effects.push({
+          type: "explosion",
+          x: impact.x,
+          y: impact.y,
+          color: effect.color,
+          startedAt: performance.now(),
+          duration: 420
+        });
+        this.#damageRaider(target, effect.damage, effect.tower);
+      } else if (effect.lastTargetPosition) {
+        this.#effects.push({
+          type: "explosion",
+          x: effect.lastTargetPosition.x,
+          y: effect.lastTargetPosition.y,
+          color: effect.color,
+          startedAt: performance.now(),
+          duration: 300
+        });
+      }
+
+      effect.done = true;
     }
 
     this.#raiders = this.#raiders.filter((raider) => raider.alive);
@@ -1644,6 +1930,26 @@ export class GameFrameScreen {
     });
   }
 
+  #fireAntiAirMissile(tower, target, stats) {
+    const center = this.#getTowerCenter(tower);
+    const targetPosition = this.#getRaiderPosition(target);
+    tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
+    this.#effects.push({
+      type: "missile",
+      from: center,
+      targetId: target.id,
+      lastTargetPosition: targetPosition,
+      asset: TOWER_DEFINITIONS[tower.type].missileAsset,
+      rarity: tower.rarity,
+      color: RARITY_COLORS[tower.rarity],
+      damage: stats.damage,
+      tower,
+      elapsed: 0,
+      durationSeconds: stats.missileDuration || 5,
+      startedAt: performance.now()
+    });
+  }
+
   #findTowerTarget(tower) {
     const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
     const center = this.#getTowerCenter(tower);
@@ -1653,7 +1959,8 @@ export class GameFrameScreen {
 
     for (const raider of this.#raiders) {
       if (!raider.alive) continue;
-      const position = this.#getRoadPosition(raider.progress);
+      if (!canTowerTargetRaider(tower, raider)) continue;
+      const position = this.#getRaiderPosition(raider);
       const distance = Math.hypot(position.x - center.x, position.y - center.y);
       if (distance <= range) candidates.push(raider);
     }
@@ -1680,8 +1987,8 @@ export class GameFrameScreen {
     let bestProgress = -Infinity;
 
     for (const raider of this.#raiders) {
-      if (!raider.alive || isRaiderFrozen(raider, this.#time)) continue;
-      const position = this.#getRoadPosition(raider.progress);
+      if (!raider.alive || isRaiderFrozen(raider, this.#time) || isFlyingRaider(raider)) continue;
+      const position = this.#getRaiderPosition(raider);
       const distance = Math.hypot(position.x - center.x, position.y - center.y);
       if (distance > range) continue;
 
@@ -1758,7 +2065,7 @@ export class GameFrameScreen {
   }
 
   #addRaiderExplosion(raider) {
-    const position = this.#getRoadPosition(raider.progress);
+    const position = this.#getRaiderPosition(raider);
     this.#effects.push({
       type: "explosion",
       x: position.x,
@@ -1865,10 +2172,10 @@ export class GameFrameScreen {
     const now = performance.now();
 
     for (const raider of this.#raiders) {
-      const position = this.#getRoadPosition(raider.progress);
+      const position = this.#getRaiderPosition(raider);
       const definition = RAIDER_TYPES[raider.type];
       const frameIndex = Math.floor(this.#time / definition.frameDuration) % definition.frames.length;
-      const image = this.#assets.get(getRarityAssetName(definition.frames[frameIndex], raider.rarity));
+      const image = this.#assets.get(getRaiderAssetKey(definition, definition.frames[frameIndex], raider.rarity));
 
       if (image?.complete && image.naturalWidth > 0) {
         this.#drawRaiderAsset(raider, image, position);
@@ -1965,7 +2272,7 @@ export class GameFrameScreen {
 
     this.#ctx.save();
     this.#ctx.translate(position.x, position.y);
-    this.#ctx.rotate(this.#getRaiderAngle(raider.progress) + getRaiderAssetRotationOffset(raider.type));
+    this.#ctx.rotate(this.#getRaiderDrawAngle(raider) + getRaiderAssetRotationOffset(raider.type));
     this.#ctx.globalCompositeOperation = "lighter";
     if (isRaiderFrozen(raider, this.#time)) {
       this.#drawFreezeHalo(size);
@@ -1977,6 +2284,9 @@ export class GameFrameScreen {
   #drawRaiderFallback(raider, position) {
     this.#ctx.save();
     this.#ctx.translate(position.x, position.y);
+    if (raider.type === "jet") {
+      this.#ctx.rotate(this.#getRaiderDrawAngle(raider));
+    }
     if (isRaiderFrozen(raider, this.#time)) {
       this.#drawFreezeHalo(CELL_SIZE * 1.35);
     }
@@ -1988,6 +2298,26 @@ export class GameFrameScreen {
       this.#ctx.beginPath();
       this.#ctx.arc(-8, 9, 3, 0, Math.PI * 2);
       this.#ctx.arc(8, 9, 3, 0, Math.PI * 2);
+      this.#ctx.stroke();
+      this.#ctx.restore();
+      return;
+    }
+
+    if (raider.type === "jet") {
+      this.#ctx.beginPath();
+      this.#ctx.moveTo(0, -22);
+      this.#ctx.lineTo(8, 8);
+      this.#ctx.lineTo(22, 17);
+      this.#ctx.lineTo(5, 18);
+      this.#ctx.lineTo(0, 26);
+      this.#ctx.lineTo(-5, 18);
+      this.#ctx.lineTo(-22, 17);
+      this.#ctx.lineTo(-8, 8);
+      this.#ctx.closePath();
+      this.#ctx.stroke();
+      this.#ctx.beginPath();
+      this.#ctx.moveTo(0, -16);
+      this.#ctx.lineTo(0, 18);
       this.#ctx.stroke();
       this.#ctx.restore();
       return;
@@ -2022,6 +2352,46 @@ export class GameFrameScreen {
     this.#ctx.fill();
     this.#ctx.stroke();
     this.#ctx.restore();
+  }
+
+  #getRaiderPosition(raider) {
+    if (isFlyingRaider(raider) && raider.flightPhase === "circling") {
+      return this.#getJetOrbitState(raider).position;
+    }
+
+    return this.#getRoadPosition(raider.progress);
+  }
+
+  #getRaiderDrawAngle(raider) {
+    if (isFlyingRaider(raider) && raider.flightPhase === "circling") {
+      return this.#getJetOrbitState(raider).angle + Math.PI;
+    }
+
+    return this.#getRaiderAngle(raider.progress);
+  }
+
+  #getJetOrbitState(raider) {
+    const entrance = this.#getRoadPosition(0);
+    const cells = this.#road.cells;
+    const a = cells[0] || { x: 0, y: 0 };
+    const b = cells[1] || { x: a.x + 1, y: a.y };
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const radius = JET_ORBIT_RADIUS_CELLS * CELL_SIZE;
+    const angle = Math.PI + TAU * ((Number(raider.flightTime) || 0) / JET_ORBIT_DURATION);
+    const center = {
+      x: entrance.x + (dx / length) * radius,
+      y: entrance.y + (dy / length) * radius
+    };
+
+    return {
+      angle,
+      position: {
+        x: center.x + Math.cos(angle) * radius,
+        y: center.y + Math.sin(angle) * radius
+      }
+    };
   }
 
   #getRoadPosition(progress) {
@@ -2538,12 +2908,32 @@ function getTowerAssetKey(definition, rarity) {
   return definition.usesRarityAssets === false ? definition.asset : getRarityAssetName(definition.asset, rarity);
 }
 
+function getTowerDrawAssetKey(definition, tower) {
+  const asset = definition.emptyAsset && tower.cooldown > 0 ? definition.emptyAsset : definition.asset;
+  return definition.usesRarityAssets === false ? asset : getRarityAssetName(asset, tower.rarity);
+}
+
+function getRaiderAssetKey(definition, asset, rarity) {
+  return definition.usesRarityAssets === false ? asset : getRarityAssetName(asset, rarity);
+}
+
 function getTowerFootprint(definition) {
   return definition?.footprint || 2;
 }
 
 function getEffectiveRaiderSpeed(raider) {
   return raider.speed * (raider.freezeSpeedMultiplier || 1);
+}
+
+function isFlyingRaider(raider) {
+  return Boolean(RAIDER_TYPES[raider.type]?.flying);
+}
+
+function canTowerTargetRaider(tower, raider) {
+  const definition = TOWER_DEFINITIONS[tower.type];
+  if (definition?.flyingOnly) return isFlyingRaider(raider);
+  if (!isFlyingRaider(raider)) return true;
+  return Boolean(definition?.canTargetFlying);
 }
 
 function createTierTwoWaveDefinitions(levelOffset) {

@@ -342,6 +342,8 @@ function normalizeRaider(raider) {
     progress: Math.max(0, Number(raider.progress) || 0),
     alive: raider.alive !== false,
     frozenUntil: Math.max(0, Number(raider.frozenUntil) || 0),
-    freezeSpeedMultiplier: Number(raider.freezeSpeedMultiplier) || 1
+    freezeSpeedMultiplier: Number(raider.freezeSpeedMultiplier) || 1,
+    flightPhase: typeof raider.flightPhase === "string" ? raider.flightPhase : undefined,
+    flightTime: Math.max(0, Number(raider.flightTime) || 0)
   };
 }

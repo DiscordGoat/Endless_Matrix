@@ -96,6 +96,30 @@ export const TOWER_DEFINITIONS = {
       epic: { placementCost: 80, rangeCells: 6, damage: 40, attackInterval: 1.4 },
       legendary: { placementCost: 160, rangeCells: 12, damage: 50, attackInterval: 1.0 }
     }
+  },
+  antiair: {
+    id: "antiair",
+    label: "Anti Air",
+    asset: "antiair",
+    emptyAsset: "antiair_empty",
+    missileAsset: "missile",
+    footprint: 2,
+    canTargetFlying: true,
+    flyingOnly: true,
+    unlockCosts: {
+      common: 100,
+      uncommon: 200,
+      rare: 400,
+      epic: 800,
+      legendary: 1600
+    },
+    rarities: {
+      common: { placementCost: 30, rangeCells: 15, damage: 100, attackInterval: 30.0, missileDuration: 5.0 },
+      uncommon: { placementCost: 60, rangeCells: 25, damage: 150, attackInterval: 25.0, missileDuration: 5.0 },
+      rare: { placementCost: 120, rangeCells: 35, damage: 200, attackInterval: 20.0, missileDuration: 5.0 },
+      epic: { placementCost: 240, rangeCells: 45, damage: 250, attackInterval: 15.0, missileDuration: 5.0 },
+      legendary: { placementCost: 480, rangeCells: 55, damage: 300, attackInterval: 10.0, missileDuration: 5.0 }
+    }
   }
 };
 
