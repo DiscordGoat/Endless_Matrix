@@ -1,5 +1,7 @@
 import { RARITIES, RARITY_LABELS, TOWER_DEFINITIONS } from "../../game/TowerDefinitions.js";
 
+const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
+
 export class TowersScreen {
   #saveService;
   #element = null;
@@ -120,7 +122,7 @@ export class TowersScreen {
   #renderTowerCard(tower, nextRarity) {
     const displayRarity = nextRarity || RARITIES[RARITIES.length - 1];
     const cost = nextRarity ? tower.unlockCosts[nextRarity] : null;
-    const assetSource = `${import.meta.env.BASE_URL}assets/towers/${tower.asset}_${displayRarity}.png`;
+    const assetSource = `${RUNTIME_ASSET_BASE}/towers/${tower.asset}_${displayRarity}.png`;
 
     return `
       <button class="tower-card rarity-${displayRarity}${nextRarity ? "" : " maxed"}" type="button" data-tower="${tower.id}" data-rarity="${displayRarity}" ${nextRarity ? "" : "disabled"}>

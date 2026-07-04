@@ -1,5 +1,7 @@
 import { GEM_DEFINITIONS, GEM_ORDER } from "../../game/GemDefinitions.js";
 
+const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
+
 export class GemsScreen {
   #saveService;
   #element = null;
@@ -46,7 +48,7 @@ export class GemsScreen {
           <div class="gem-grid">
             ${sortedGems.map((gem) => `
               <button class="gem-card rarity-${gem.definition.rarity}" type="button" data-index="${gem.index}" ${this.#selling ? "disabled" : ""}>
-                <img src="${import.meta.env.BASE_URL}assets/gems/${gem.definition.asset}.png" alt="" />
+                <img src="${RUNTIME_ASSET_BASE}/gems/${gem.definition.asset}.png" alt="" />
                 <span>${gem.definition.label}</span>
                 <small>Sell ${gem.definition.sellValue}</small>
               </button>

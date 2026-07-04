@@ -1229,6 +1229,12 @@ h1 {
   backdrop-filter: blur(8px);
 }
 
+.fps-pill {
+  min-width: 70px;
+  border-color: rgba(144, 222, 120, 0.42);
+  color: rgba(218, 255, 210, 0.95);
+}
+
 .gameframe-end {
   min-height: 38px;
   padding: 0 12px;
@@ -1464,10 +1470,10 @@ h1 {
   position: absolute;
   left: 50%;
   bottom: max(78px, calc(env(safe-area-inset-bottom) + 78px));
-  width: min(360px, calc(100vw - 28px));
+  width: min(292px, calc(100vw - 24px));
   border: 1px solid rgba(170, 244, 255, 0.54);
   background: rgba(2, 5, 10, 0.86);
-  padding: 14px;
+  padding: 10px;
   display: none;
   transform: translateX(-50%);
   backdrop-filter: blur(10px);
@@ -1476,21 +1482,24 @@ h1 {
 
 .tower-popup.active {
   display: grid;
-  gap: 12px;
+  gap: 9px;
   animation: screenEnter 160ms ease-out both;
 }
 
 .tower-popup-title {
   color: rgba(224, 252, 255, 0.94);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tower-popup-actions {
   display: grid;
-  gap: 9px;
+  gap: 8px;
 }
 
 .tower-popup-actions[data-placement-panel] {
@@ -1498,34 +1507,40 @@ h1 {
 }
 
 .target-priority-group {
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: 7px;
+  min-width: 0;
 }
 
 .target-priority-label {
   color: rgba(224, 252, 255, 0.7);
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  flex: 0 0 auto;
 }
 
 .target-priority-options {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .target-priority-button {
-  min-height: 34px;
+  min-height: 30px;
   border: 1px solid rgba(170, 244, 255, 0.34);
   background: rgba(255, 255, 255, 0.018);
   color: rgba(224, 252, 255, 0.78);
   cursor: pointer;
   font: inherit;
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 900;
   text-transform: uppercase;
+  padding: 0 5px;
 }
 
 .target-priority-button.active {
@@ -1535,7 +1550,7 @@ h1 {
 }
 
 .tower-popup-button {
-  min-height: 48px;
+  min-height: 40px;
   border: 1px solid rgba(170, 244, 255, 0.48);
   background: rgba(255, 255, 255, 0.025);
   color: rgba(224, 252, 255, 0.94);
@@ -1545,6 +1560,85 @@ h1 {
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.tower-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tower-action-button {
+  min-height: 54px;
+  padding: 7px 8px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+}
+
+.tower-action-icon {
+  width: 30px;
+  height: 30px;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.tower-action-icon.upgrade {
+  background: var(--level-white);
+  filter: drop-shadow(0 0 9px rgba(255, 255, 255, 0.2));
+  mask-image: var(--upgrade-icon-url);
+  mask-mode: alpha;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-image: var(--upgrade-icon-url);
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}
+
+.tower-action-button[data-upgrade-rarity="uncommon"] .tower-action-icon.upgrade {
+  background: var(--level-green);
+  filter: drop-shadow(0 0 9px rgba(144, 222, 120, 0.28));
+}
+
+.tower-action-button[data-upgrade-rarity="rare"] .tower-action-icon.upgrade {
+  background: var(--level-blue);
+  filter: drop-shadow(0 0 9px rgba(96, 172, 255, 0.28));
+}
+
+.tower-action-button[data-upgrade-rarity="epic"] .tower-action-icon.upgrade {
+  background: var(--level-purple);
+  filter: drop-shadow(0 0 9px rgba(177, 102, 255, 0.28));
+}
+
+.tower-action-button[data-upgrade-rarity="legendary"] .tower-action-icon.upgrade {
+  background: var(--level-gold);
+  filter: drop-shadow(0 0 9px rgba(255, 182, 54, 0.3));
+}
+
+.tower-action-icon.recycle img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(255, 101, 116, 0.22));
+  pointer-events: none;
+}
+
+.tower-action-meta {
+  min-width: 0;
+  color: currentColor;
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tower-popup-button.danger {
@@ -1563,6 +1657,7 @@ h1 {
   padding: 8px;
   display: grid;
   place-items: center;
+  background: transparent;
 }
 
 .tower-placement-icon img {

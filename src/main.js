@@ -11,8 +11,10 @@ import { GemsScreen } from "./ui/screens/GemsScreen.js";
 import { CratesScreen } from "./ui/screens/CratesScreen.js";
 import { ShopScreen } from "./ui/screens/ShopScreen.js";
 import { GameEndScreen } from "./ui/screens/GameEndScreen.js";
+import { preloadImages } from "./ui/AssetCache.js";
 
 const appRoot = document.querySelector("#app");
+const runtimeAssetBase = `${import.meta.env.BASE_URL}assets/runtime`;
 const saveService = new SaveService();
 const flavorManager = new FlavorManager();
 
@@ -27,3 +29,30 @@ screenManager.register("shop", new ShopScreen({ saveService }));
 screenManager.register("game-frame", new GameFrameScreen({ flavorManager, saveService }));
 screenManager.register("game-end", new GameEndScreen({ saveService }));
 screenManager.show("main-menu");
+
+const preloadRuntimeAssets = () => {
+  preloadImages([
+    `${runtimeAssetBase}/other/recycle.png`,
+    `${runtimeAssetBase}/other/upgrade.png`,
+    `${runtimeAssetBase}/scenery/tree.png`,
+    `${runtimeAssetBase}/scenery/boulder.png`,
+    `${runtimeAssetBase}/towers/cannon_common.png`,
+    `${runtimeAssetBase}/towers/minigun_common.png`,
+    `${runtimeAssetBase}/towers/raygun_common.png`,
+    `${runtimeAssetBase}/towers/missile_common.png`,
+    `${runtimeAssetBase}/towers/antiair_common.png`,
+    `${runtimeAssetBase}/towers/factory_common.png`,
+    `${runtimeAssetBase}/raiders/walker_frame1_common.png`,
+    `${runtimeAssetBase}/raiders/walker_frame2_common.png`,
+    `${runtimeAssetBase}/raiders/car_common.png`,
+    `${runtimeAssetBase}/crates/bronze_crate.png`,
+    `${runtimeAssetBase}/crates/silver_crate.png`,
+    `${runtimeAssetBase}/crates/gold_crate.png`
+  ]).catch(() => {});
+};
+
+if ("requestIdleCallback" in window) {
+  window.requestIdleCallback(preloadRuntimeAssets, { timeout: 1800 });
+} else {
+  window.setTimeout(preloadRuntimeAssets, 600);
+}

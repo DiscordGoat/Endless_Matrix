@@ -15,6 +15,8 @@ import {
 import { RARITY_LABELS } from "../../game/TowerDefinitions.js";
 import { queuePerkReward } from "../RewardPopup.js";
 
+const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
+
 export class ShopScreen {
   #saveService;
   #element = null;
@@ -124,7 +126,7 @@ export class ShopScreen {
     return `
       <div class="shop-perk-slot">
         <button class="shop-cell shop-perk-cell rarity-${rarity}" type="button" data-perk="${perk.id}" aria-label="${perk.label}">
-          <img src="${import.meta.env.BASE_URL}assets/perk_icons/${perk.icon}.png" alt="" />
+          <img src="${RUNTIME_ASSET_BASE}/perk_icons/${perk.icon}.png" alt="" />
         </button>
         <span class="shop-perk-name rarity-${rarity}">${perk.label} ${toRoman(displayLevel)}</span>
       </div>
@@ -159,7 +161,7 @@ export class ShopScreen {
           </header>
 
           <div class="perk-detail-icon" aria-hidden="true">
-            <img src="${import.meta.env.BASE_URL}assets/perk_icons/${perk.icon}.png" alt="" />
+            <img src="${RUNTIME_ASSET_BASE}/perk_icons/${perk.icon}.png" alt="" />
           </div>
 
           <div class="perk-comparison">

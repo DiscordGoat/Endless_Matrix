@@ -2,6 +2,7 @@ import { CRATE_DEFINITIONS, CRATE_ORDER } from "../../game/CrateDefinitions.js";
 import { GEM_DEFINITIONS, GEM_ORDER } from "../../game/GemDefinitions.js";
 
 const SLOT_COUNT = 4;
+const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
 
 export class CratesScreen {
   #saveService;
@@ -57,7 +58,7 @@ export class CratesScreen {
               const count = save.crateInventory[crateId] || 0;
               return `
                 <button class="crate-card crate-${crateId}${this.#selectedCrate === crateId ? " selected" : ""}" type="button" data-crate="${crateId}" ${this.#opening ? "disabled" : ""}>
-                  <img src="${import.meta.env.BASE_URL}assets/crates/${crate.asset}.png" alt="" />
+                  <img src="${RUNTIME_ASSET_BASE}/crates/${crate.asset}.png" alt="" />
                   <span>${crate.label}</span>
                   <small class="${count > 0 ? "has-count" : ""}">${count} Owned</small>
                 </button>
@@ -71,7 +72,7 @@ export class CratesScreen {
               ${this.#renderSlot(1, inlayGems[1])}
             </div>
             <div class="crate-focus">
-              <img src="${import.meta.env.BASE_URL}assets/crates/${selected.asset}.png" alt="" />
+              <img src="${RUNTIME_ASSET_BASE}/crates/${selected.asset}.png" alt="" />
               <strong>${selected.label}</strong>
               <span>Loot ${lootValue}-${lootValue * 2}</span>
               <div class="crate-actions">
@@ -88,7 +89,7 @@ export class CratesScreen {
           <div class="gem-grid compact-gem-grid">
             ${sortedGems.map((gem) => `
               <button class="gem-card rarity-${gem.definition.rarity}" type="button" data-gem-index="${gem.index}" ${this.#opening || this.#inlayIndices.length >= SLOT_COUNT ? "disabled" : ""}>
-                <img src="${import.meta.env.BASE_URL}assets/gems/${gem.definition.asset}.png" alt="" />
+                <img src="${RUNTIME_ASSET_BASE}/gems/${gem.definition.asset}.png" alt="" />
                 <span>${gem.definition.label}</span>
                 <small>+${gem.definition.sellValue}</small>
               </button>
@@ -117,7 +118,7 @@ export class CratesScreen {
     const gem = GEM_DEFINITIONS[gemId];
     return `
       <button class="crate-slot filled rarity-${gem.rarity}${this.#lastInlaySlot === slot ? " just-inlaid" : ""}" type="button" data-slot="${slot}">
-        <img src="${import.meta.env.BASE_URL}assets/gems/${gem.asset}.png" alt="" />
+        <img src="${RUNTIME_ASSET_BASE}/gems/${gem.asset}.png" alt="" />
       </button>
     `;
   }

@@ -1,5 +1,6 @@
 import { GEM_DEFINITIONS } from "../game/GemDefinitions.js";
 
+const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
 let rewardSequence = 0;
 const rewardQueue = [];
 let rewardPlaying = false;
@@ -59,7 +60,7 @@ function showGemReward(gemId) {
   popup.dataset.rewardId = String(++rewardSequence);
   popup.innerHTML = `
     <div class="test-reward-burst" aria-hidden="true"></div>
-    <img src="${import.meta.env.BASE_URL}assets/gems/${gem.asset}.png" alt="" />
+    <img src="${RUNTIME_ASSET_BASE}/gems/${gem.asset}.png" alt="" />
     <div class="test-reward-kicker">Found Gem</div>
     <div class="test-reward-name">${gem.label}</div>
   `;
@@ -86,7 +87,7 @@ function showPerkReward({ label, level, icon, rarity }) {
   popup.dataset.rewardId = String(++rewardSequence);
   popup.innerHTML = `
     <div class="test-reward-burst" aria-hidden="true"></div>
-    <img src="${import.meta.env.BASE_URL}assets/perk_icons/${icon}.png" alt="" />
+    <img src="${RUNTIME_ASSET_BASE}/perk_icons/${icon}.png" alt="" />
     <div class="test-reward-kicker">Perk Upgraded</div>
     <div class="test-reward-name">${label} ${level}</div>
   `;

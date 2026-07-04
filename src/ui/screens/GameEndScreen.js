@@ -1,6 +1,7 @@
 import { CRATE_DEFINITIONS, getRandomCrate } from "../../game/CrateDefinitions.js";
 import { GEM_DEFINITIONS, getRandomGem } from "../../game/GemDefinitions.js";
 
+const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
 const STEP_DELAY_MS = 420;
 const COUNT_FAST_MS = 760;
 const COUNT_SLOW_MS = 2000;
@@ -156,9 +157,9 @@ export class GameEndScreen {
   #createItemNode({ type, item }) {
     const node = document.createElement("div");
     node.className = `game-end-item ${type === "gem" ? `rarity-${item.rarity}` : `crate-${item.id}`}`;
-    const assetPath = type === "gem" ? `assets/gems/${item.asset}.png` : `assets/crates/${item.asset}.png`;
+    const assetPath = type === "gem" ? `gems/${item.asset}.png` : `crates/${item.asset}.png`;
     node.innerHTML = `
-      <img src="${import.meta.env.BASE_URL}${assetPath}" alt="" />
+      <img src="${RUNTIME_ASSET_BASE}/${assetPath}" alt="" />
       <span>${item.label}</span>
     `;
     return node;

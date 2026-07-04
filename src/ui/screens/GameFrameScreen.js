@@ -5,39 +5,43 @@ import { createRaider, RAIDER_TYPES } from "../../game/RaiderDefinitions.js";
 import { getRandomGem } from "../../game/GemDefinitions.js";
 import { BASE_COIN_DROP_CHANCE, BASE_RAIDER_RESOURCE_MULTIPLIER, getCoinYieldMultiplier, getCrateDropChance, getGemDropChance } from "../../game/PerkDefinitions.js";
 import { getNextRarity, RARITIES, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
+import { getCachedImage } from "../AssetCache.js";
 import { queueCoinReward, queueGemReward, queueTextReward } from "../RewardPopup.js";
 
 const FIRST_TIER_GRID_SIZE = 50;
 const CELL_SIZE = 32;
+const TARGET_BUCKET_SIZE = CELL_SIZE * 4;
 const MONOLITH_LIFT = CELL_SIZE * 0.9;
 const MONOLITH_INSET = CELL_SIZE * 0.18;
 const MIN_ZOOM = 0.38;
 const MAX_ZOOM = 2.4;
 const TAU = Math.PI * 2;
+const ASSET_BASE_URL = import.meta.env.BASE_URL;
+const RUNTIME_ASSET_BASE = `${ASSET_BASE_URL}assets/runtime`;
 const ASSET_SOURCES = {
-  tree: `${import.meta.env.BASE_URL}assets/scenery/tree.png`,
-  boulder: `${import.meta.env.BASE_URL}assets/scenery/boulder.png`,
+  tree: `${RUNTIME_ASSET_BASE}/scenery/tree.png`,
+  boulder: `${RUNTIME_ASSET_BASE}/scenery/boulder.png`,
   ...Object.fromEntries(Object.values(TOWER_DEFINITIONS).flatMap((tower) => {
     const assetNames = [tower.asset, tower.emptyAsset, tower.missileAsset].filter(Boolean);
-    const baseAssets = assetNames.map((asset) => [asset, `${import.meta.env.BASE_URL}assets/towers/${asset}.png`]);
+    const baseAssets = assetNames.map((asset) => [asset, `${RUNTIME_ASSET_BASE}/towers/${asset}.png`]);
     if (tower.usesRarityAssets === false) return baseAssets;
     return assetNames.flatMap((asset) => [
-      [asset, `${import.meta.env.BASE_URL}assets/towers/${asset}.png`],
+      [asset, `${RUNTIME_ASSET_BASE}/towers/${asset}.png`],
       ...RARITIES.map((rarity) => {
         const key = getRarityAssetName(asset, rarity);
-        return [key, `${import.meta.env.BASE_URL}assets/towers/${key}.png`];
+        return [key, `${RUNTIME_ASSET_BASE}/towers/${key}.png`];
       })
     ]);
   })),
   ...Object.fromEntries(Object.values(RAIDER_TYPES).flatMap((raider) => (
     raider.frames.flatMap((asset) => {
-      const baseAsset = [[asset, `${import.meta.env.BASE_URL}assets/raiders/${asset}.png`]];
+      const baseAsset = [[asset, `${RUNTIME_ASSET_BASE}/raiders/${asset}.png`]];
       if (raider.usesRarityAssets === false) return baseAsset;
       return [
         ...baseAsset,
         ...RARITIES.map((rarity) => {
           const key = getRarityAssetName(asset, rarity);
-          return [key, `${import.meta.env.BASE_URL}assets/raiders/${key}.png`];
+          return [key, `${RUNTIME_ASSET_BASE}/raiders/${key}.png`];
         })
       ];
     })
@@ -51,10 +55,12 @@ const LEVEL_WAVE_COUNTS = {
 };
 const RUN_AUTOSAVE_INTERVAL_MS = 10000;
 const TOWER_POPUP_OPEN_DELAY_MS = 50;
+const FPS_SAMPLE_INTERVAL_MS = 250;
+const MAX_ACTIVE_EFFECTS = 140;
 const TARGET_PRIORITIES = [
-  { id: "strongest", label: "Strongest" },
-  { id: "first", label: "First" },
-  { id: "last", label: "Last" }
+  { id: "strongest", label: "strg" },
+  { id: "first", label: "fst" },
+  { id: "last", label: "lst" }
 ];
 const DEVELOPER_COMMANDS = ["spawnraider", "setresources"];
 const WAVE_SPAWN_INTERVAL = 0.45;
@@ -234,6 +240,9 @@ export class GameFrameScreen {
   #ctx = null;
   #animationFrame = null;
   #needsDraw = true;
+  #staticLayerCanvas = null;
+  #staticLayerCtx = null;
+  #staticLayerDirty = true;
   #level = 1;
   #camera = {
     x: 0,
@@ -246,6 +255,11 @@ export class GameFrameScreen {
   #time = 0;
   #gameSpeed = 1;
   #lastFrameTime = 0;
+  #fps = {
+    frames: 0,
+    lastSampleAt: 0,
+    display: 0
+  };
   #gradientSeed = {
     hueA: 182,
     hueB: 196,
@@ -272,6 +286,9 @@ export class GameFrameScreen {
   #spawnQueue = [];
   #spawnTimer = 0;
   #raiders = [];
+  #raiderPositions = new Map();
+  #raiderById = new Map();
+  #raiderBuckets = new Map();
   #nextRaiderId = 1;
   #gameOver = false;
   #runInitialized = false;
@@ -333,6 +350,7 @@ export class GameFrameScreen {
           <button class="gameframe-end" type="button">End Game</button>
         </div>
         <div class="player-stat-strip">
+          <div class="run-pill fps-pill" data-fps-display>FPS --</div>
           <div class="run-pill" data-resource-display>${Math.floor(this.#resources)}R</div>
           <div class="run-pill" data-run-coin-display>+${this.#runCoins} Coins</div>
           <div class="run-pill" data-run-gem-display>+${this.#runGems.length} Gems</div>
@@ -371,8 +389,18 @@ export class GameFrameScreen {
         <div class="tower-popup-actions" data-placement-panel></div>
         <div class="tower-popup-actions" data-tower-panel>
           <div class="target-priority-group" data-target-priority-group aria-label="Target priority"></div>
-          <button class="tower-popup-button" type="button" data-upgrade-tower>Upgrade</button>
-          <button class="tower-popup-button danger" type="button" data-recycle-tower>Recycle</button>
+          <div class="tower-action-row">
+            <button class="tower-popup-button tower-action-button" type="button" data-upgrade-tower aria-label="Upgrade tower" title="Upgrade tower">
+              <span class="tower-action-icon upgrade" style="--upgrade-icon-url: url('${RUNTIME_ASSET_BASE}/other/upgrade.png')" aria-hidden="true"></span>
+              <span class="tower-action-meta" data-upgrade-tower-meta>--</span>
+            </button>
+            <button class="tower-popup-button tower-action-button danger" type="button" data-recycle-tower aria-label="Recycle tower" title="Recycle tower">
+              <span class="tower-action-icon recycle" aria-hidden="true">
+                <img src="${RUNTIME_ASSET_BASE}/other/recycle.png" alt="" draggable="false" />
+              </span>
+              <span class="tower-action-meta" data-recycle-tower-meta>--</span>
+            </button>
+          </div>
         </div>
       </section>
     `;
@@ -462,6 +490,7 @@ export class GameFrameScreen {
     this.#canvas.style.width = `${width}px`;
     this.#canvas.style.height = `${height}px`;
     this.#ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.#markStaticLayerDirty();
 
     const worldWidth = this.#worldWidth();
     const worldHeight = this.#worldHeight();
@@ -475,10 +504,16 @@ export class GameFrameScreen {
 
   #start() {
     this.#lastFrameTime = performance.now();
+    this.#fps = {
+      frames: 0,
+      lastSampleAt: this.#lastFrameTime,
+      display: 0
+    };
 
     const tick = (now) => {
       const dt = Math.min(0.05, (now - this.#lastFrameTime) / 1000);
       this.#lastFrameTime = now;
+      this.#updateFpsDisplay(now);
 
       if (this.#running) {
         const scaledDt = dt * this.#gameSpeed;
@@ -495,6 +530,21 @@ export class GameFrameScreen {
     };
 
     this.#animationFrame = requestAnimationFrame(tick);
+  }
+
+  #updateFpsDisplay(now) {
+    this.#fps.frames += 1;
+    const elapsed = now - this.#fps.lastSampleAt;
+    if (elapsed < FPS_SAMPLE_INTERVAL_MS) return;
+
+    this.#fps.display = Math.round((this.#fps.frames * 1000) / elapsed);
+    this.#fps.frames = 0;
+    this.#fps.lastSampleAt = now;
+
+    const fpsDisplay = this.#element?.querySelector("[data-fps-display]");
+    if (fpsDisplay) {
+      fpsDisplay.textContent = `FPS ${this.#fps.display}`;
+    }
   }
 
   #toggleTime() {
@@ -933,12 +983,9 @@ export class GameFrameScreen {
     this.#ctx.translate(this.#camera.x, this.#camera.y);
     this.#ctx.scale(this.#camera.scale, this.#camera.scale);
 
-    this.#drawGridBase(worldSize);
-    this.#drawGridLines(worldSize);
-    this.#drawRoad();
-    this.#drawTiles();
+    this.#drawStaticLayer(worldSize);
+    this.#drawRoadFlow();
     this.#drawTowerRanges();
-    this.#drawFlavorElements();
     this.#drawPlacementSelection();
     this.#drawTowers();
     this.#drawRaiders();
@@ -947,6 +994,36 @@ export class GameFrameScreen {
     this.#drawEdgeGradient(worldSize, this.#time);
 
     this.#ctx.restore();
+  }
+
+  #markStaticLayerDirty() {
+    this.#staticLayerDirty = true;
+    this.#requestDraw();
+  }
+
+  #drawStaticLayer(worldSize) {
+    if (!this.#staticLayerCanvas || this.#staticLayerCanvas.width !== worldSize || this.#staticLayerCanvas.height !== worldSize) {
+      this.#staticLayerCanvas = document.createElement("canvas");
+      this.#staticLayerCanvas.width = worldSize;
+      this.#staticLayerCanvas.height = worldSize;
+      this.#staticLayerCtx = this.#staticLayerCanvas.getContext("2d");
+      this.#staticLayerDirty = true;
+    }
+
+    if (this.#staticLayerDirty) {
+      const liveCtx = this.#ctx;
+      this.#ctx = this.#staticLayerCtx;
+      this.#ctx.clearRect(0, 0, worldSize, worldSize);
+      this.#drawGridBase(worldSize);
+      this.#drawGridLines(worldSize);
+      this.#drawRoad(false);
+      this.#drawTiles();
+      this.#drawFlavorElements();
+      this.#ctx = liveCtx;
+      this.#staticLayerDirty = false;
+    }
+
+    this.#ctx.drawImage(this.#staticLayerCanvas, 0, 0);
   }
 
   #drawGridBase(worldSize) {
@@ -984,7 +1061,7 @@ export class GameFrameScreen {
     }
   }
 
-  #drawRoad() {
+  #drawRoad(includeFlow = true) {
     if (!this.#road?.cells?.length) return;
 
     this.#ctx.save();
@@ -999,7 +1076,9 @@ export class GameFrameScreen {
     this.#ctx.lineWidth = 1.5;
     this.#strokeRoadPath();
 
-    this.#drawRoadFlow();
+    if (includeFlow) {
+      this.#drawRoadFlow();
+    }
     this.#ctx.restore();
   }
 
@@ -1187,6 +1266,9 @@ export class GameFrameScreen {
       if (effect.type === "missile") return true;
       return now - effect.startedAt < effect.duration;
     });
+    if (this.#effects.length > MAX_ACTIVE_EFFECTS) {
+      this.#effects.splice(0, this.#effects.length - MAX_ACTIVE_EFFECTS);
+    }
 
     for (const effect of this.#effects) {
       const progress = effect.type === "missile"
@@ -1217,7 +1299,7 @@ export class GameFrameScreen {
     this.#ctx.strokeStyle = effect.color;
     this.#ctx.lineWidth = effect.towerType === "cannon" ? 4 : 1.6;
     this.#ctx.shadowColor = effect.color;
-    this.#ctx.shadowBlur = effect.towerType === "cannon" ? 22 : 8;
+    this.#ctx.shadowBlur = effect.towerType === "cannon" ? 10 : 4;
     this.#ctx.beginPath();
     this.#ctx.moveTo(effect.from.x + (x - effect.from.x) * 0.62, effect.from.y + (y - effect.from.y) * 0.62);
     this.#ctx.lineTo(x, y);
@@ -1233,7 +1315,7 @@ export class GameFrameScreen {
     this.#ctx.globalCompositeOperation = "lighter";
     this.#ctx.fillStyle = withAlpha(effect.color, alpha * 0.52);
     this.#ctx.shadowColor = effect.color;
-    this.#ctx.shadowBlur = 24;
+    this.#ctx.shadowBlur = 8;
     this.#ctx.beginPath();
     this.#ctx.arc(effect.x, effect.y, radius, 0, TAU);
     this.#ctx.fill();
@@ -1250,7 +1332,7 @@ export class GameFrameScreen {
     this.#ctx.fillStyle = withAlpha(effect.color, alpha * 0.14);
     this.#ctx.lineWidth = 3;
     this.#ctx.shadowColor = effect.color;
-    this.#ctx.shadowBlur = 20;
+    this.#ctx.shadowBlur = 8;
     this.#ctx.beginPath();
     this.#ctx.arc(effect.x, effect.y, radius, 0, TAU);
     this.#ctx.fill();
@@ -1259,8 +1341,8 @@ export class GameFrameScreen {
   }
 
   #drawMissileEffect(effect, progress) {
-    const target = this.#raiders.find((raider) => raider.id === effect.targetId && raider.alive);
-    const to = target ? this.#getRaiderPosition(target) : effect.lastTargetPosition;
+    const target = this.#getRaiderById(effect.targetId);
+    const to = target ? this.#getCachedRaiderPosition(target) : effect.lastTargetPosition;
     const eased = progress < 1 ? 1 - Math.pow(1 - progress, 2.4) : 1;
     const x = effect.from.x + (to.x - effect.from.x) * eased;
     const y = effect.from.y + (to.y - effect.from.y) * eased;
@@ -1275,7 +1357,7 @@ export class GameFrameScreen {
     this.#ctx.rotate(angle);
     this.#ctx.globalCompositeOperation = "lighter";
     this.#ctx.shadowColor = effect.color;
-    this.#ctx.shadowBlur = 14;
+    this.#ctx.shadowBlur = 6;
 
     if (image?.complete && image.naturalWidth > 0) {
       this.#ctx.drawImage(image, -size / 2, -size / 2, size, size);
@@ -1546,7 +1628,7 @@ export class GameFrameScreen {
           title="${title}"
           ${!unlocked || this.#resources < cost ? "disabled" : ""}
         >
-          <img src="${import.meta.env.BASE_URL}assets/towers/${assetKey}.png" alt="" draggable="false" />
+          <img src="${RUNTIME_ASSET_BASE}/towers/${assetKey}.png" alt="" draggable="false" />
         </button>
       `;
     }).join("");
@@ -1591,14 +1673,19 @@ export class GameFrameScreen {
     const towerPanel = this.#element.querySelector("[data-tower-panel]");
     const upgradeButton = this.#element.querySelector("[data-upgrade-tower]");
     const recycleButton = this.#element.querySelector("[data-recycle-tower]");
+    const upgradeMeta = this.#element.querySelector("[data-upgrade-tower-meta]");
+    const recycleMeta = this.#element.querySelector("[data-recycle-tower-meta]");
     const nextRarity = getNextRarity(tower.rarity);
     const definition = TOWER_DEFINITIONS[tower.type];
     const priorityGroup = this.#element.querySelector("[data-target-priority-group]");
 
     title.textContent = `${RARITY_LABELS[tower.rarity]} ${definition.label}`;
-    recycleButton.textContent = `Recycle +${Math.floor(this.#getRecycleValue(tower))}R`;
+    const recycleValue = Math.floor(this.#getRecycleValue(tower));
+    recycleButton.setAttribute("aria-label", `Recycle tower for ${recycleValue} resources`);
+    recycleButton.title = `Recycle +${recycleValue}R`;
+    recycleMeta.textContent = `+${recycleValue}R`;
     priorityGroup.innerHTML = tower.type === "factory" ? "" : `
-      <div class="target-priority-label">Target Priority</div>
+      <div class="target-priority-label">Target</div>
       <div class="target-priority-options">
         ${TARGET_PRIORITIES.map((priority) => `
           <button
@@ -1611,12 +1698,19 @@ export class GameFrameScreen {
     `;
 
     if (!nextRarity) {
-      upgradeButton.textContent = "Max Tier";
+      upgradeButton.setAttribute("aria-label", "Tower is already at max tier");
+      upgradeButton.title = "Max tier";
+      upgradeButton.dataset.upgradeRarity = "";
+      upgradeMeta.textContent = "Max";
       upgradeButton.disabled = true;
     } else {
       const unlocked = this.#saveService.isTowerUnlocked(tower.type, nextRarity);
       const cost = definition.rarities[nextRarity].placementCost;
-      upgradeButton.textContent = unlocked ? `Upgrade - ${cost}R` : `${RARITY_LABELS[nextRarity]} Locked`;
+      const nextLabel = RARITY_LABELS[nextRarity];
+      upgradeButton.setAttribute("aria-label", unlocked ? `Upgrade tower to ${nextLabel} for ${cost} resources` : `${nextLabel} upgrade locked`);
+      upgradeButton.title = unlocked ? `Upgrade - ${cost}R` : `${nextLabel} locked`;
+      upgradeButton.dataset.upgradeRarity = nextRarity;
+      upgradeMeta.textContent = `${cost}R`;
       upgradeButton.disabled = !unlocked || this.#resources < cost;
     }
 
@@ -1744,7 +1838,9 @@ export class GameFrameScreen {
   #updateWave(dt) {
     this.#updateSpawning(dt);
     this.#updateRaiders(dt);
+    this.#rebuildRaiderSpatialIndex();
     this.#updateMissiles(dt);
+    this.#rebuildRaiderSpatialIndex();
     this.#updateTowers(dt);
     this.#checkWaveEnd();
     this.#syncRunHud();
@@ -1884,7 +1980,7 @@ export class GameFrameScreen {
         }
 
         const center = this.#getTowerCenter(tower);
-        const targetPosition = this.#getRaiderPosition(target);
+        const targetPosition = this.#getCachedRaiderPosition(target);
         tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
         this.#addTowerShotEffects(tower, center, targetPosition);
         this.#damageRaider(target, stats.damage, tower);
@@ -1903,20 +1999,78 @@ export class GameFrameScreen {
     this.#raiders = this.#raiders.filter((raider) => raider.alive);
   }
 
+  #rebuildRaiderSpatialIndex() {
+    this.#raiderPositions.clear();
+    this.#raiderById.clear();
+    this.#raiderBuckets.clear();
+
+    for (const raider of this.#raiders) {
+      if (!raider.alive) continue;
+
+      const position = this.#getRaiderPosition(raider);
+      this.#raiderPositions.set(raider.id, position);
+      this.#raiderById.set(raider.id, raider);
+
+      const bucketX = Math.floor(position.x / TARGET_BUCKET_SIZE);
+      const bucketY = Math.floor(position.y / TARGET_BUCKET_SIZE);
+      const key = `${bucketX},${bucketY}`;
+      let bucket = this.#raiderBuckets.get(key);
+      if (!bucket) {
+        bucket = [];
+        this.#raiderBuckets.set(key, bucket);
+      }
+      bucket.push(raider);
+    }
+  }
+
+  #getCachedRaiderPosition(raider) {
+    let position = this.#raiderPositions.get(raider.id);
+    if (!position) {
+      position = this.#getRaiderPosition(raider);
+      this.#raiderPositions.set(raider.id, position);
+    }
+    return position;
+  }
+
+  #getRaiderById(id) {
+    const cached = this.#raiderById.get(id);
+    if (cached?.alive) return cached;
+    return this.#raiders.find((raider) => raider.id === id && raider.alive) || null;
+  }
+
+  #getRaiderCandidatesInRange(center, range) {
+    if (this.#raiderBuckets.size <= 0) return this.#raiders;
+
+    const minX = Math.floor((center.x - range) / TARGET_BUCKET_SIZE);
+    const maxX = Math.floor((center.x + range) / TARGET_BUCKET_SIZE);
+    const minY = Math.floor((center.y - range) / TARGET_BUCKET_SIZE);
+    const maxY = Math.floor((center.y + range) / TARGET_BUCKET_SIZE);
+    const candidates = [];
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const bucket = this.#raiderBuckets.get(`${x},${y}`);
+        if (bucket) candidates.push(...bucket);
+      }
+    }
+
+    return candidates;
+  }
+
   #updateMissiles(dt) {
     for (const effect of this.#effects) {
       if (effect.type !== "missile" || effect.done) continue;
 
       effect.elapsed += dt;
-      const target = this.#raiders.find((raider) => raider.id === effect.targetId && raider.alive);
+      const target = this.#getRaiderById(effect.targetId);
       if (target) {
-        effect.lastTargetPosition = this.#getRaiderPosition(target);
+        effect.lastTargetPosition = this.#getCachedRaiderPosition(target);
       }
 
       if (effect.elapsed < effect.durationSeconds) continue;
 
       if (target) {
-        const impact = this.#getRaiderPosition(target);
+        const impact = this.#getCachedRaiderPosition(target);
         this.#effects.push({
           type: "explosion",
           x: impact.x,
@@ -1965,7 +2119,7 @@ export class GameFrameScreen {
 
   #fireAntiAirMissile(tower, target, stats) {
     const center = this.#getTowerCenter(tower);
-    const targetPosition = this.#getRaiderPosition(target);
+    const targetPosition = this.#getCachedRaiderPosition(target);
     tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
     this.#effects.push({
       type: "missile",
@@ -1987,43 +2141,52 @@ export class GameFrameScreen {
     const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
     const center = this.#getTowerCenter(tower);
     const range = stats.rangeCells * CELL_SIZE;
+    const rangeSq = range * range;
     const priority = tower.targetPriority || "first";
-    let candidates = [];
+    let best = null;
+    let bestScore = -Infinity;
+    let bestTie = -Infinity;
 
-    for (const raider of this.#raiders) {
+    for (const raider of this.#getRaiderCandidatesInRange(center, range)) {
       if (!raider.alive) continue;
       if (!canTowerTargetRaider(tower, raider)) continue;
-      const position = this.#getRaiderPosition(raider);
-      const distance = Math.hypot(position.x - center.x, position.y - center.y);
-      if (distance <= range) candidates.push(raider);
+      const position = this.#getCachedRaiderPosition(raider);
+      const dx = position.x - center.x;
+      const dy = position.y - center.y;
+      if (dx * dx + dy * dy > rangeSq) continue;
+
+      let score = raider.progress;
+      let tie = raider.id;
+      if (priority === "strongest") {
+        score = getRaiderStrength(raider);
+        tie = raider.progress;
+      } else if (priority === "last") {
+        score = raider.id;
+        tie = -raider.progress;
+      }
+
+      if (score > bestScore || (score === bestScore && tie > bestTie)) {
+        best = raider;
+        bestScore = score;
+        bestTie = tie;
+      }
     }
 
-    if (candidates.length <= 0) return null;
-
-    if (priority === "strongest") {
-      return candidates.sort((a, b) => {
-        const strengthDelta = getRaiderStrength(b) - getRaiderStrength(a);
-        return strengthDelta || b.progress - a.progress;
-      })[0];
-    }
-
-    if (priority === "last") {
-      return candidates.sort((a, b) => b.id - a.id || a.progress - b.progress)[0];
-    }
-
-    return candidates.sort((a, b) => b.progress - a.progress)[0];
+    return best;
   }
 
   #findRaygunTarget(center, range) {
     let best = null;
     let bestSpeed = -Infinity;
     let bestProgress = -Infinity;
+    const rangeSq = range * range;
 
-    for (const raider of this.#raiders) {
+    for (const raider of this.#getRaiderCandidatesInRange(center, range)) {
       if (!raider.alive || isRaiderFrozen(raider, this.#time) || isFlyingRaider(raider)) continue;
-      const position = this.#getRaiderPosition(raider);
-      const distance = Math.hypot(position.x - center.x, position.y - center.y);
-      if (distance > range) continue;
+      const position = this.#getCachedRaiderPosition(raider);
+      const dx = position.x - center.x;
+      const dy = position.y - center.y;
+      if (dx * dx + dy * dy > rangeSq) continue;
 
       const speed = getEffectiveRaiderSpeed(raider);
       if (speed > bestSpeed || (speed === bestSpeed && raider.progress > bestProgress)) {
@@ -2205,7 +2368,7 @@ export class GameFrameScreen {
     const now = performance.now();
 
     for (const raider of this.#raiders) {
-      const position = this.#getRaiderPosition(raider);
+      const position = this.#getCachedRaiderPosition(raider);
       const definition = RAIDER_TYPES[raider.type];
       const frameIndex = Math.floor(this.#time / definition.frameDuration) % definition.frames.length;
       const image = this.#assets.get(getRaiderAssetKey(definition, definition.frames[frameIndex], raider.rarity));
@@ -2284,7 +2447,7 @@ export class GameFrameScreen {
     this.#ctx.strokeStyle = "rgba(68, 255, 239, 0.9)";
     this.#ctx.lineWidth = 11;
     this.#ctx.shadowColor = "rgba(68, 255, 239, 0.66)";
-    this.#ctx.shadowBlur = 18;
+    this.#ctx.shadowBlur = 8;
     this.#ctx.beginPath();
     this.#ctx.moveTo(start, inset);
     this.#ctx.lineTo(end, inset);
@@ -2379,7 +2542,7 @@ export class GameFrameScreen {
     this.#ctx.strokeStyle = "rgba(124, 226, 255, 0.72)";
     this.#ctx.lineWidth = Math.max(2, size * 0.04);
     this.#ctx.shadowColor = "rgba(124, 226, 255, 0.62)";
-    this.#ctx.shadowBlur = size * 0.18;
+    this.#ctx.shadowBlur = size * 0.08;
     this.#ctx.beginPath();
     this.#ctx.ellipse(0, size * 0.24, radius, radius * 0.28, 0, 0, TAU);
     this.#ctx.fill();
@@ -2722,9 +2885,13 @@ export class GameFrameScreen {
 
   #loadAssets() {
     for (const [type, source] of Object.entries(ASSET_SOURCES)) {
-      const image = new Image();
-      image.src = source;
-      image.addEventListener("load", () => this.#requestDraw());
+      const image = getCachedImage(source, () => {
+        if (type === "tree" || type === "boulder") {
+          this.#markStaticLayerDirty();
+        } else {
+          this.#requestDraw();
+        }
+      });
       this.#assets.set(type, image);
     }
   }
@@ -2744,7 +2911,7 @@ export class GameFrameScreen {
     this.#ctx.strokeStyle = gradient;
     this.#ctx.lineWidth = 3;
     this.#ctx.shadowColor = colors[1];
-    this.#ctx.shadowBlur = 18 + this.#getBreath(time) * 18;
+    this.#ctx.shadowBlur = 8 + this.#getBreath(time) * 8;
     this.#ctx.strokeRect(1.5, 1.5, worldSize - 3, worldSize - 3);
 
     this.#drawEdgeFire(worldSize, time, colors);
@@ -2767,10 +2934,10 @@ export class GameFrameScreen {
   }
 
   #drawFireSide(side, worldSize, depth, time, colors) {
-    const step = CELL_SIZE / 2;
+    const step = CELL_SIZE;
     const segments = Math.ceil(worldSize / step);
 
-    for (let layer = 0; layer < 4; layer++) {
+    for (let layer = 0; layer < 2; layer++) {
       const layerDepth = depth * (1 - layer * 0.17);
       const alpha = 0.18 - layer * 0.035;
       const lineWidth = 9 - layer * 1.5;
@@ -2797,7 +2964,7 @@ export class GameFrameScreen {
       this.#ctx.lineCap = "round";
       this.#ctx.lineJoin = "round";
       this.#ctx.shadowColor = colors[layer % colors.length];
-      this.#ctx.shadowBlur = 18 - layer * 2;
+      this.#ctx.shadowBlur = 8 - layer * 2;
       this.#ctx.stroke();
     }
   }
