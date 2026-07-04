@@ -19,7 +19,6 @@ bin/
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
-/dist/
 /nbdist/
 /.nb-gradle/
 
@@ -28,9 +27,33 @@ bin/
 
 ### Node / Vite ###
 node_modules/
-dist/
 .vite/
 npm-debug.log*
+
+### Pages build output ###
+dist/assets/crates/
+dist/assets/gems/
+dist/assets/other/
+dist/assets/perk_icons/
+dist/assets/raiders/
+dist/assets/scenery/
+dist/assets/towers/
+dist/dist/assets/crates/
+dist/dist/assets/gems/
+dist/dist/assets/other/
+dist/dist/assets/perk_icons/
+dist/dist/assets/raiders/
+dist/dist/assets/scenery/
+dist/dist/assets/towers/
+!dist/assets/runtime/
+!dist/assets/runtime/**
+!dist/dist/
+!dist/dist/index.html
+!dist/dist/assets/
+!dist/dist/assets/*.js
+!dist/dist/assets/*.css
+!dist/dist/assets/runtime/
+!dist/dist/assets/runtime/**
 
 ### Mac OS ###
 .DS_Store
