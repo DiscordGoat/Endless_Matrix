@@ -50,6 +50,7 @@ const LEVEL_WAVE_COUNTS = {
   2: 25
 };
 const RUN_AUTOSAVE_INTERVAL_MS = 10000;
+const TOWER_POPUP_OPEN_DELAY_MS = 50;
 const TARGET_PRIORITIES = [
   { id: "strongest", label: "Strongest" },
   { id: "first", label: "First" },
@@ -290,6 +291,8 @@ export class GameFrameScreen {
   #selectedTower = null;
   #towers = [];
   #nextTowerId = 1;
+  #towerPopupOpenTimer = 0;
+  #towerPopupOpenToken = 0;
   #effects = [];
   #lastRunSaveAt = 0;
 
@@ -427,6 +430,7 @@ export class GameFrameScreen {
 
   unmount() {
     this.#saveActiveRun();
+    this.#cancelTowerPopupOpen();
     cancelAnimationFrame(this.#animationFrame);
     window.removeEventListener("resize", this.#resize);
     window.removeEventListener("keydown", this.#handleKeyDown);
@@ -1531,15 +1535,24 @@ export class GameFrameScreen {
     placementPanel.innerHTML = placeableTowers.map((tower) => {
       const unlocked = this.#saveService.isTowerUnlocked(tower.id, "common");
       const cost = tower.rarities.common.placementCost;
+      const assetKey = getTowerAssetKey(tower, "common");
+      const title = unlocked ? `${tower.label} - ${cost}R` : `${tower.label} Locked`;
       return `
-        <button class="tower-popup-button" type="button" data-place-tower="${tower.id}" ${!unlocked || this.#resources < cost ? "disabled" : ""}>
-          ${unlocked ? `Place ${tower.label} - ${cost}R` : `${tower.label} Locked`}
+        <button
+          class="tower-popup-button tower-placement-icon"
+          type="button"
+          data-place-tower="${tower.id}"
+          aria-label="${title}"
+          title="${title}"
+          ${!unlocked || this.#resources < cost ? "disabled" : ""}
+        >
+          <img src="${import.meta.env.BASE_URL}assets/towers/${assetKey}.png" alt="" draggable="false" />
         </button>
       `;
     }).join("");
     placementPanel.style.display = "grid";
     towerPanel.style.display = "none";
-    popup.classList.add("active");
+    this.#openTowerPopupAfterDelay(popup);
   }
 
   #refreshTowerPopupAffordability() {
@@ -1609,12 +1622,32 @@ export class GameFrameScreen {
 
     placementPanel.style.display = "none";
     towerPanel.style.display = "grid";
-    popup.classList.add("active");
+    this.#openTowerPopupAfterDelay(popup);
   }
 
   #closeTowerPopup() {
     if (!this.#element) return;
+    this.#cancelTowerPopupOpen();
     this.#element.querySelector("[data-tower-popup]")?.classList.remove("active");
+  }
+
+  #openTowerPopupAfterDelay(popup) {
+    this.#cancelTowerPopupOpen();
+    popup.classList.remove("active");
+    const token = ++this.#towerPopupOpenToken;
+
+    this.#towerPopupOpenTimer = window.setTimeout(() => {
+      if (!this.#element || token !== this.#towerPopupOpenToken) return;
+      popup.classList.add("active");
+      this.#towerPopupOpenTimer = 0;
+    }, TOWER_POPUP_OPEN_DELAY_MS);
+  }
+
+  #cancelTowerPopupOpen() {
+    this.#towerPopupOpenToken++;
+    if (!this.#towerPopupOpenTimer) return;
+    window.clearTimeout(this.#towerPopupOpenTimer);
+    this.#towerPopupOpenTimer = 0;
   }
 
   #clearSelection() {
