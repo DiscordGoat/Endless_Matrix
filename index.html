@@ -8,15 +8,6 @@
   </head>
   <body>
     <div id="app"></div>
-    <script type="module">
-      const isLocalDev = ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
-      const isBuiltDist = window.location.pathname.includes("/dist/");
-
-      if (isLocalDev || isBuiltDist) {
-        import("/src/main.js");
-      } else {
-        window.location.replace(new URL("./dist/", window.location.href));
-      }
-    </script>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
