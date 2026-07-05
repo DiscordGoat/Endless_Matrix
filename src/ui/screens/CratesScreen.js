@@ -46,7 +46,13 @@ export class CratesScreen {
       <section class="game-shell level-shell tower-shell" aria-labelledby="cratesTitle">
         <header class="tower-header">
           <h1 id="cratesTitle" class="screen-title">Crates</h1>
-          <div class="coin-readout" data-coin-readout>${save.coins} Coins</div>
+          <div class="crate-readouts">
+            <div class="coin-readout" data-coin-readout>${save.coins} Coins</div>
+            <div class="singularity-readout" data-singularity-readout>
+              <img src="${RUNTIME_ASSET_BASE}/other/singularity.png" alt="" />
+              <span>${save.singularities}</span>
+            </div>
+          </div>
         </header>
 
         <div class="crate-open-layer" data-crate-open-layer></div>
@@ -75,6 +81,7 @@ export class CratesScreen {
               <img src="${RUNTIME_ASSET_BASE}/crates/${selected.asset}.png" alt="" />
               <strong>${selected.label}</strong>
               <span>Loot ${lootValue}-${lootValue * 2}</span>
+              <span class="singularity-chance">${Math.round(selected.singularityChance * 100)}% Singularity</span>
               <div class="crate-actions">
                 <button class="wire-button compact" type="button" data-open="one" ${(save.crateInventory[this.#selectedCrate] || 0) <= 0 || this.#opening ? "disabled" : ""}>Open 1</button>
                 <button class="wire-button compact" type="button" data-open="all" ${(save.crateInventory[this.#selectedCrate] || 0) <= 0 || this.#opening ? "disabled" : ""}>Open All</button>
@@ -171,20 +178,30 @@ export class CratesScreen {
     const lootValue = crate.baseValue + inlayValue;
     const reward = Array.from({ length: count }, () => randomInt(lootValue, lootValue * 2))
       .reduce((sum, value) => sum + value, 0);
+    const singularities = Array.from({ length: count }, () => Math.random() < crate.singularityChance ? 1 : 0)
+      .reduce((sum, value) => sum + value, 0);
 
     this.#opening = true;
     this.#saveService.removeGemsByIndices(this.#inlayIndices);
     this.#saveService.spendCrates(this.#selectedCrate, count);
     this.#inlayIndices = [];
-    this.#runOpenAnimation({ context, reward });
+    this.#runOpenAnimation({ context, reward, singularities });
   }
 
-  #runOpenAnimation({ context, reward }) {
+  #runOpenAnimation({ context, reward, singularities }) {
     const layer = this.#element.querySelector("[data-crate-open-layer]");
     const readout = this.#element.querySelector("[data-coin-readout]");
+    const singularityReadout = this.#element.querySelector("[data-singularity-readout] span");
     const startCoins = this.#saveService.getSnapshot().coins;
-    layer.innerHTML = `<div class="crate-roll" data-crate-roll>0 Coins</div>`;
+    const startSingularities = this.#saveService.getSnapshot().singularities;
+    layer.innerHTML = `
+      <div class="crate-roll" data-crate-roll>
+        <span>0 Coins</span>
+        ${singularities > 0 ? `<small>+${singularities} Singularity</small>` : ""}
+      </div>
+    `;
     const roll = layer.querySelector("[data-crate-roll]");
+    const rollCoins = roll.querySelector("span");
     const rollDuration = 1700;
     const holdDuration = 2000;
     const startedAt = performance.now();
@@ -192,21 +209,30 @@ export class CratesScreen {
     const tick = (now) => {
       const progress = Math.min(1, (now - startedAt) / rollDuration);
       const eased = 1 - Math.pow(1 - progress, 3);
-      roll.textContent = `${Math.round(reward * eased)} Coins`;
+      rollCoins.textContent = `${Math.round(reward * eased)} Coins`;
 
       if (progress < 1) {
         this.#animation = requestAnimationFrame(tick);
         return;
       }
 
-      roll.textContent = `${reward} Coins`;
-      setTimeout(() => this.#finishCoinDeposit({ context, reward, startCoins, readout, roll }), holdDuration);
+      rollCoins.textContent = `${reward} Coins`;
+      setTimeout(() => this.#finishCoinDeposit({
+        context,
+        reward,
+        singularities,
+        startCoins,
+        startSingularities,
+        readout,
+        singularityReadout,
+        roll
+      }), holdDuration);
     };
 
     this.#animation = requestAnimationFrame(tick);
   }
 
-  #finishCoinDeposit({ context, reward, startCoins, readout, roll }) {
+  #finishCoinDeposit({ context, reward, singularities, startCoins, startSingularities, readout, singularityReadout, roll }) {
     const startedAt = performance.now();
     const duration = 1200;
 
@@ -215,6 +241,9 @@ export class CratesScreen {
       const displayCoins = Math.round(startCoins + reward * progress);
       readout.textContent = `${displayCoins} Coins`;
       readout.classList.add("selling");
+      if (singularityReadout) {
+        singularityReadout.textContent = Math.round(startSingularities + singularities * progress);
+      }
 
       if (progress < 1) {
         this.#animation = requestAnimationFrame(tick);
@@ -222,6 +251,7 @@ export class CratesScreen {
       }
 
       this.#saveService.addCoins(reward);
+      this.#saveService.addSingularities(singularities);
       readout.classList.remove("selling");
       roll.remove();
       this.#opening = false;

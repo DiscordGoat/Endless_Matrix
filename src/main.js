@@ -10,6 +10,7 @@ import { TowersScreen } from "./ui/screens/TowersScreen.js";
 import { GemsScreen } from "./ui/screens/GemsScreen.js";
 import { CratesScreen } from "./ui/screens/CratesScreen.js";
 import { ShopScreen } from "./ui/screens/ShopScreen.js";
+import { ResearchScreen } from "./ui/screens/ResearchScreen.js";
 import { GameEndScreen } from "./ui/screens/GameEndScreen.js";
 import { preloadImages } from "./ui/AssetCache.js";
 
@@ -26,6 +27,7 @@ screenManager.register("towers", new TowersScreen({ saveService }));
 screenManager.register("gems", new GemsScreen({ saveService }));
 screenManager.register("crates", new CratesScreen({ saveService }));
 screenManager.register("shop", new ShopScreen({ saveService }));
+screenManager.register("research", new ResearchScreen({ saveService }));
 screenManager.register("game-frame", new GameFrameScreen({ flavorManager, saveService }));
 screenManager.register("game-end", new GameEndScreen({ saveService }));
 screenManager.show("main-menu");
@@ -34,6 +36,8 @@ const preloadRuntimeAssets = () => {
   preloadImages([
     `${runtimeAssetBase}/other/recycle.png`,
     `${runtimeAssetBase}/other/upgrade.png`,
+    `${runtimeAssetBase}/other/research.png`,
+    `${runtimeAssetBase}/other/singularity.png`,
     `${runtimeAssetBase}/scenery/tree.png`,
     `${runtimeAssetBase}/scenery/boulder.png`,
     `${runtimeAssetBase}/towers/cannon_common.png`,

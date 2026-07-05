@@ -5,6 +5,7 @@ import { createRaider, RAIDER_TYPES } from "../../game/RaiderDefinitions.js";
 import { getRandomGem } from "../../game/GemDefinitions.js";
 import { BASE_COIN_DROP_CHANCE, BASE_RAIDER_RESOURCE_MULTIPLIER, getCoinYieldMultiplier, getCrateDropChance, getGemDropChance } from "../../game/PerkDefinitions.js";
 import { getNextRarity, RARITIES, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
+import { getResearchKey, getResearchNode, getTowerResearchNodes } from "../../game/ResearchDefinitions.js";
 import { getCachedImage } from "../AssetCache.js";
 import { queueCoinReward, queueGemReward, queueTextReward } from "../RewardPopup.js";
 
@@ -59,12 +60,17 @@ const TOWER_POPUP_OPEN_DELAY_MS = 50;
 const FPS_SAMPLE_INTERVAL_MS = 250;
 const MAX_ACTIVE_EFFECTS = 140;
 const GAME_SPEEDS = [1, 2, 4, 16];
+const RESEARCH_RARITY_INDEX = RARITIES.indexOf("rare");
+const PENETRATION_RADIUS = CELL_SIZE * 2;
+const AIRBURST_BOMB_DELAY_SECONDS = 0.5;
+const AIRBURST_BOMB_RADIUS = CELL_SIZE * 2;
 const TARGET_PRIORITIES = [
   { id: "strongest", label: "strg" },
   { id: "first", label: "fst" },
   { id: "last", label: "lst" }
 ];
-const DEVELOPER_COMMANDS = ["spawnraider", "setresources"];
+const DEVELOPER_COMMANDS = ["spawnraider", "setresources", "giveitem"];
+const GIVE_ITEM_SUGGESTIONS = ["singularity", "copper", "bronze", "silver", "gold"];
 const WAVE_SPAWN_INTERVAL = 0.45;
 const WAVE_SPAWN_SPACING_MULTIPLIER = 1.6;
 const JET_ORBIT_CIRCUITS = 3;
@@ -396,6 +402,14 @@ export class GameFrameScreen {
         <div class="tower-popup-actions" data-placement-panel></div>
         <div class="tower-popup-actions" data-tower-panel>
           <div class="target-priority-group" data-target-priority-group aria-label="Target priority"></div>
+          <div class="tower-research-summary" data-tower-research-summary></div>
+          <button class="tower-popup-button tower-research-button" type="button" data-open-research>
+            <span class="tower-action-icon research" aria-hidden="true">
+              <img src="${RUNTIME_ASSET_BASE}/other/research.png" alt="" draggable="false" />
+            </span>
+            <span data-open-research-label>Research</span>
+          </button>
+          <div class="tower-research-options" data-tower-research-options></div>
           <div class="tower-action-row">
             <button class="tower-popup-button tower-action-button" type="button" data-upgrade-tower aria-label="Upgrade tower" title="Upgrade tower">
               <span class="tower-action-icon upgrade" style="--upgrade-icon-url: url('${RUNTIME_ASSET_BASE}/other/upgrade.png')" aria-hidden="true"></span>
@@ -439,6 +453,11 @@ export class GameFrameScreen {
     screen.querySelector("[data-target-priority-group]").addEventListener("click", (event) => {
       const button = event.target.closest("[data-target-priority]");
       if (button) this.#setSelectedTowerPriority(button.dataset.targetPriority);
+    });
+    screen.querySelector("[data-open-research]").addEventListener("click", () => this.#toggleTowerResearchOptions());
+    screen.querySelector("[data-tower-research-options]").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-assign-research]");
+      if (button) this.#assignSelectedTowerResearch(button.dataset.assignResearch);
     });
     screen.querySelector("[data-upgrade-tower]").addEventListener("click", () => this.#upgradeSelectedTower());
     screen.querySelector("[data-recycle-tower]").addEventListener("click", () => this.#recycleSelectedTower());
@@ -895,6 +914,8 @@ export class GameFrameScreen {
       this.#runSpawnRaiderCommand(args);
     } else if (normalizedName === "setresources") {
       this.#runSetResourcesCommand(args);
+    } else if (normalizedName === "giveitem") {
+      this.#runGiveItemCommand(args);
     } else {
       this.#setDeveloperConsoleStatus(`Unknown command: ${name}`, false);
       return;
@@ -931,6 +952,36 @@ export class GameFrameScreen {
     this.#requestDraw();
   }
 
+  #runGiveItemCommand(args) {
+    const item = args[0]?.toLowerCase();
+    if (!item) {
+      this.#setDeveloperConsoleStatus(`Use: giveitem ${GIVE_ITEM_SUGGESTIONS.join("|")}`, false);
+      return;
+    }
+
+    if (item === "singularity" || item === "singularities") {
+      this.#saveService.addSingularities(1);
+      this.#setDeveloperConsoleStatus("Added 1 Singularity", true);
+      return;
+    }
+
+    const crateId = item === "copper" || item === "coppercrate" || item === "bronze" || item === "bronzecrate"
+      ? "bronze"
+      : item === "silver" || item === "silvercrate"
+        ? "silver"
+        : item === "gold" || item === "goldcrate"
+          ? "gold"
+          : "";
+
+    if (crateId) {
+      this.#saveService.addCrates([crateId]);
+      this.#setDeveloperConsoleStatus(`Added 1 ${crateId === "bronze" ? "Copper" : crateId} crate`, true);
+      return;
+    }
+
+    this.#setDeveloperConsoleStatus(`Unknown item: ${item}`, false);
+  }
+
   #refreshDeveloperSuggestions() {
     const input = this.#element?.querySelector("[data-developer-console-input]");
     const datalist = this.#element?.querySelector("[data-developer-console-suggestions]");
@@ -940,11 +991,14 @@ export class GameFrameScreen {
     const [name] = value.split(/\s+/);
     const suggestions = name === "spawnraider" || value.startsWith("spawnraider ")
       ? Object.keys(RAIDER_TYPES).map((type) => `spawnraider ${type}`)
-      : [
-        ...DEVELOPER_COMMANDS,
-        ...Object.keys(RAIDER_TYPES).map((type) => `spawnraider ${type}`),
-        "setresources 100"
-      ];
+      : name === "giveitem" || value.startsWith("giveitem ")
+        ? GIVE_ITEM_SUGGESTIONS.map((item) => `giveitem ${item}`)
+        : [
+          ...DEVELOPER_COMMANDS,
+          ...Object.keys(RAIDER_TYPES).map((type) => `spawnraider ${type}`),
+          "setresources 100",
+          ...GIVE_ITEM_SUGGESTIONS.map((item) => `giveitem ${item}`)
+        ];
 
     datalist.innerHTML = suggestions
       .filter((suggestion) => suggestion.startsWith(value))
@@ -1191,7 +1245,7 @@ export class GameFrameScreen {
 
     if (tower) {
       const center = this.#getTowerCenter(tower);
-      const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
+      const stats = getEffectiveTowerStats(tower);
       if (stats.rangeCells <= 0) return;
       this.#drawRangeCircle(center.x, center.y, stats.rangeCells * CELL_SIZE, RARITY_COLORS[tower.rarity]);
     } else if (area?.valid) {
@@ -1289,6 +1343,8 @@ export class GameFrameScreen {
         this.#drawMuzzleEffect(effect, progress);
       } else if (effect.type === "explosion") {
         this.#drawExplosionEffect(effect, progress);
+      } else if (effect.type === "airburst-bomb") {
+        this.#drawAirburstBombEffect(effect, progress);
       } else if (effect.type === "factory-beam") {
         this.#drawFactoryBeamEffect(effect, progress);
       }
@@ -1303,7 +1359,7 @@ export class GameFrameScreen {
     this.#ctx.save();
     this.#ctx.globalCompositeOperation = "lighter";
     this.#ctx.strokeStyle = effect.color;
-    this.#ctx.lineWidth = effect.towerType === "cannon" ? 4 : 1.6;
+    this.#ctx.lineWidth = effect.research === "high_caliber" ? 3.2 : effect.towerType === "cannon" ? 4 : 1.6;
     this.#ctx.shadowColor = effect.color;
     this.#ctx.shadowBlur = effect.towerType === "cannon" ? 10 : 4;
     this.#ctx.beginPath();
@@ -1686,6 +1742,7 @@ export class GameFrameScreen {
     const priorityGroup = this.#element.querySelector("[data-target-priority-group]");
 
     title.textContent = `${RARITY_LABELS[tower.rarity]} ${definition.label}`;
+    this.#refreshTowerResearchControls(tower, { open: false });
     const recycleValue = Math.floor(this.#getRecycleValue(tower));
     recycleButton.setAttribute("aria-label", `Recycle tower for ${recycleValue} resources`);
     recycleButton.title = `Recycle +${recycleValue}R`;
@@ -1776,6 +1833,7 @@ export class GameFrameScreen {
       spent: stats.placementCost,
       cooldown: towerId === "factory" ? stats.attackInterval : 0,
       targetPriority: "first",
+      research: "",
       angle: -Math.PI / 2
     };
     this.#towers.push(tower);
@@ -1803,6 +1861,103 @@ export class GameFrameScreen {
     this.#openTowerPanel(this.#selectedTower);
     this.#saveActiveRun();
     this.#requestDraw();
+  }
+
+  #drawAirburstBombEffect(effect, progress) {
+    const armProgress = clamp(effect.elapsed / effect.delaySeconds, 0, 1);
+    const radius = CELL_SIZE * (0.12 + armProgress * 0.14);
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.fillStyle = withAlpha(effect.color, 0.34 + armProgress * 0.42);
+    this.#ctx.strokeStyle = effect.color;
+    this.#ctx.lineWidth = 2;
+    this.#ctx.shadowColor = effect.color;
+    this.#ctx.shadowBlur = 8;
+    this.#ctx.beginPath();
+    this.#ctx.rect(effect.x - radius, effect.y - radius, radius * 2, radius * 2);
+    this.#ctx.fill();
+    this.#ctx.stroke();
+    this.#ctx.restore();
+  }
+
+  #toggleTowerResearchOptions() {
+    if (!this.#selectedTower) return;
+    const options = this.#element.querySelector("[data-tower-research-options]");
+    const open = options?.dataset.open !== "true";
+    this.#refreshTowerResearchControls(this.#selectedTower, { open });
+  }
+
+  #assignSelectedTowerResearch(researchId) {
+    const tower = this.#selectedTower;
+    if (!tower) return;
+    if (researchId === "none") {
+      tower.research = "";
+    } else if (this.#canAssignResearch(tower, researchId)) {
+      tower.research = researchId;
+    }
+
+    this.#refreshTowerResearchControls(tower, { open: false });
+    this.#saveActiveRun();
+    this.#requestDraw();
+  }
+
+  #refreshTowerResearchControls(tower, { open }) {
+    const summary = this.#element.querySelector("[data-tower-research-summary]");
+    const button = this.#element.querySelector("[data-open-research]");
+    const buttonLabel = this.#element.querySelector("[data-open-research-label]");
+    const options = this.#element.querySelector("[data-tower-research-options]");
+    const nodes = getTowerResearchNodes(tower.type);
+    const eligible = nodes.length > 0 && RARITIES.indexOf(tower.rarity) >= RESEARCH_RARITY_INDEX;
+    const assigned = tower.research ? getResearchNode(tower.type, tower.research) : null;
+
+    summary.textContent = assigned ? `Research: ${assigned.shortLabel}` : eligible ? "Research: Empty" : "Research unlocks at Rare";
+    button.style.display = nodes.length > 0 ? "grid" : "none";
+    button.disabled = !eligible;
+    buttonLabel.textContent = assigned ? assigned.shortLabel : "Research";
+    options.dataset.open = String(Boolean(open && eligible));
+
+    if (!open || !eligible) {
+      options.innerHTML = "";
+      return;
+    }
+
+    const save = this.#saveService.getSnapshot();
+    options.innerHTML = [
+      `<button class="tower-research-option${!tower.research ? " active" : ""}" type="button" data-assign-research="none">None</button>`,
+      ...nodes.map((node) => {
+        const capacity = save.research[getResearchKey(node.towerId, node.id)] || 0;
+        const used = this.#getResearchUsage(node.towerId, node.id);
+        const usedByOtherTowers = this.#getResearchUsage(node.towerId, node.id, tower);
+        const active = tower.research === node.id;
+        const available = active || usedByOtherTowers < capacity;
+        return `
+          <button
+            class="tower-research-option${active ? " active" : ""}"
+            type="button"
+            data-assign-research="${node.id}"
+            ${available ? "" : "disabled"}
+          >
+            <strong>${node.shortLabel}</strong>
+            <span>${used}/${capacity}</span>
+          </button>
+        `;
+      })
+    ].join("");
+  }
+
+  #canAssignResearch(tower, researchId) {
+    const node = getResearchNode(tower.type, researchId);
+    if (!node || RARITIES.indexOf(tower.rarity) < RESEARCH_RARITY_INDEX) return false;
+    const save = this.#saveService.getSnapshot();
+    const capacity = save.research[getResearchKey(tower.type, researchId)] || 0;
+    return this.#getResearchUsage(tower.type, researchId, tower) < capacity;
+  }
+
+  #getResearchUsage(towerId, researchId, excludeTower = null) {
+    return this.#towers.filter((tower) => (
+      tower !== excludeTower && tower.type === towerId && tower.research === researchId
+    )).length;
   }
 
   #upgradeSelectedTower() {
@@ -1956,7 +2111,7 @@ export class GameFrameScreen {
 
   #updateTowers(dt) {
     for (const tower of this.#towers) {
-      const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
+      const stats = getEffectiveTowerStats(tower);
       tower.cooldown -= dt;
 
       if (tower.type === "factory") {
@@ -1990,6 +2145,7 @@ export class GameFrameScreen {
         tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
         this.#addTowerShotEffects(tower, center, targetPosition);
         this.#damageRaider(target, stats.damage, tower);
+        this.#applyResearchShotEffects(tower, target, stats);
         if (tower.type === "raygun") {
           this.#freezeRaider(target, tower.rarity);
         }
@@ -2064,6 +2220,8 @@ export class GameFrameScreen {
   }
 
   #updateMissiles(dt) {
+    this.#updateAirburstBombs(dt);
+
     for (const effect of this.#effects) {
       if (effect.type !== "missile" || effect.done) continue;
 
@@ -2097,6 +2255,28 @@ export class GameFrameScreen {
         });
       }
 
+      effect.done = true;
+    }
+
+    this.#raiders = this.#raiders.filter((raider) => raider.alive);
+  }
+
+  #updateAirburstBombs(dt) {
+    for (const effect of this.#effects) {
+      if (effect.type !== "airburst-bomb" || effect.done) continue;
+
+      effect.elapsed += dt;
+      if (effect.elapsed < effect.delaySeconds) continue;
+
+      this.#damageRaidersInRadius(effect.x, effect.y, effect.radius, effect.damage, effect.tower, null, { liveScan: true });
+      this.#effects.push({
+        type: "explosion",
+        x: effect.x,
+        y: effect.y,
+        color: effect.color,
+        startedAt: performance.now(),
+        duration: 420
+      });
       effect.done = true;
     }
 
@@ -2144,7 +2324,7 @@ export class GameFrameScreen {
   }
 
   #findTowerTarget(tower) {
-    const stats = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
+    const stats = getEffectiveTowerStats(tower);
     const center = this.#getTowerCenter(tower);
     const range = stats.rangeCells * CELL_SIZE;
     const rangeSq = range * range;
@@ -2218,7 +2398,7 @@ export class GameFrameScreen {
     this.#revealRaiderBars(raider);
 
     if (raider.shield > 0) {
-      const shieldDamageMultiplier = getShieldDamageMultiplier(tower?.type);
+      const shieldDamageMultiplier = getShieldDamageMultiplier(tower);
       const potentialShieldDamage = remaining * shieldDamageMultiplier;
       const shieldDamage = Math.min(raider.shield, potentialShieldDamage);
       const rawDamageUsed = shieldDamage / shieldDamageMultiplier;
@@ -2236,7 +2416,7 @@ export class GameFrameScreen {
   }
 
   #addTowerShotEffects(tower, from, to) {
-    const color = RARITY_COLORS[tower.rarity];
+    const color = getTowerProjectileColor(tower);
     const direction = Math.atan2(to.y - from.y, to.x - from.x);
     const muzzleDistance = tower.type === "cannon" ? CELL_SIZE * 1.08 : CELL_SIZE * 0.88;
     const muzzle = {
@@ -2247,11 +2427,12 @@ export class GameFrameScreen {
     this.#effects.push({
       type: "projectile",
       towerType: tower.type,
+      research: tower.research || "",
       from: muzzle,
       to,
       color,
       startedAt: performance.now(),
-      duration: tower.type === "cannon" ? 120 : tower.type === "raygun" ? 155 : 75
+      duration: getProjectileDuration(tower)
     });
 
     if (tower.type === "cannon") {
@@ -2262,6 +2443,71 @@ export class GameFrameScreen {
         color: "rgba(255, 159, 67, 0.95)",
         startedAt: performance.now(),
         duration: 170
+      });
+    }
+
+    if (tower.type === "minigun" && tower.research === "gatling") {
+      this.#effects.push({
+        type: "muzzle",
+        x: muzzle.x,
+        y: muzzle.y,
+        color: "rgba(255, 120, 42, 0.95)",
+        startedAt: performance.now(),
+        duration: 120
+      });
+    }
+  }
+
+  #applyResearchShotEffects(tower, target, stats) {
+    if (tower.type === "minigun" && (tower.research === "high_caliber" || tower.research === "sniper")) {
+      const chance = tower.research === "sniper" ? 0.3 : 0.6;
+      if (Math.random() < chance) {
+        const targetPosition = this.#getCachedRaiderPosition(target);
+        this.#damageRaidersInRadius(targetPosition.x, targetPosition.y, PENETRATION_RADIUS, stats.damage, tower, target);
+      }
+    }
+
+    if (tower.type === "cannon" && tower.research === "airburst") {
+      const targetPosition = this.#getCachedRaiderPosition(target);
+      this.#spawnAirburstBombs(tower, targetPosition, stats.damage * 0.25);
+    }
+  }
+
+  #damageRaidersInRadius(x, y, radius, damage, tower, exclude = null, options = {}) {
+    const radiusSq = radius * radius;
+    const candidates = options.liveScan ? this.#raiders : this.#getRaiderCandidatesInRange({ x, y }, radius);
+    for (const raider of candidates) {
+      if (!raider.alive || raider === exclude) continue;
+      const position = options.liveScan ? this.#getRaiderPosition(raider) : this.#getCachedRaiderPosition(raider);
+      const dx = position.x - x;
+      const dy = position.y - y;
+      if (dx * dx + dy * dy <= radiusSq) {
+        this.#damageRaider(raider, damage, tower);
+      }
+    }
+  }
+
+  #spawnAirburstBombs(tower, targetPosition, damage) {
+    const offsets = [
+      { x: -CELL_SIZE * 0.5, y: -CELL_SIZE * 0.5 },
+      { x: CELL_SIZE * 0.5, y: -CELL_SIZE * 0.5 },
+      { x: -CELL_SIZE * 0.5, y: CELL_SIZE * 0.5 },
+      { x: CELL_SIZE * 0.5, y: CELL_SIZE * 0.5 }
+    ];
+
+    for (const offset of offsets) {
+      this.#effects.push({
+        type: "airburst-bomb",
+        x: targetPosition.x + offset.x,
+        y: targetPosition.y + offset.y,
+        radius: AIRBURST_BOMB_RADIUS,
+        damage,
+        tower,
+        color: "rgba(255, 188, 79, 0.96)",
+        elapsed: 0,
+        delaySeconds: AIRBURST_BOMB_DELAY_SECONDS,
+        startedAt: performance.now(),
+        duration: AIRBURST_BOMB_DELAY_SECONDS * 1000 + 420
       });
     }
   }
@@ -3253,8 +3499,52 @@ function isRaiderFrozen(raider, time) {
   return (raider.frozenUntil || 0) > time;
 }
 
-function getShieldDamageMultiplier(towerType) {
-  if (towerType === "minigun") return 0.5;
-  if (towerType === "cannon") return 2;
+function getEffectiveTowerStats(tower) {
+  const base = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
+  const stats = { ...base };
+
+  if (tower.type === "minigun") {
+    if (tower.research === "gatling") {
+      stats.attackInterval *= 0.7;
+    } else if (tower.research === "high_caliber") {
+      stats.attackInterval *= 1.3;
+    } else if (tower.research === "sniper") {
+      stats.attackInterval *= 10;
+      stats.rangeCells *= 1.6;
+    }
+  } else if (tower.type === "cannon") {
+    if (tower.research === "airburst") {
+      stats.damage *= 0.5;
+    } else if (tower.research === "armor_piercing") {
+      stats.attackInterval *= 1.5;
+    }
+  }
+
+  return stats;
+}
+
+function getShieldDamageMultiplier(tower) {
+  if (!tower) return 1;
+  if (tower.type === "minigun" && tower.research === "armor_piercing") return 0.75;
+  if (tower.type === "cannon" && tower.research === "armor_piercing") return 3.6;
+  if (tower.type === "minigun") return 0.5;
+  if (tower.type === "cannon") return 2;
   return 1;
+}
+
+function getTowerProjectileColor(tower) {
+  if (
+    (tower.type === "minigun" && tower.research === "armor_piercing") ||
+    (tower.type === "cannon" && tower.research === "armor_piercing")
+  ) {
+    return "rgba(68, 255, 239, 0.96)";
+  }
+  return RARITY_COLORS[tower.rarity];
+}
+
+function getProjectileDuration(tower) {
+  if (tower.type === "cannon") return 120;
+  if (tower.type === "raygun") return 155;
+  if (tower.type === "minigun" && tower.research === "sniper") return 42;
+  return 75;
 }

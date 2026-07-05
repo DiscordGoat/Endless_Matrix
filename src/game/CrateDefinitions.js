@@ -3,9 +3,10 @@ export const CRATE_ORDER = ["gold", "silver", "bronze"];
 export const CRATE_DEFINITIONS = {
   bronze: {
     id: "bronze",
-    label: "Bronze Crate",
+    label: "Copper Crate",
     asset: "bronze_crate",
     baseValue: 100,
+    singularityChance: 0.1,
     color: "rgba(205, 127, 50, 0.95)"
   },
   silver: {
@@ -13,6 +14,7 @@ export const CRATE_DEFINITIONS = {
     label: "Silver Crate",
     asset: "silver_crate",
     baseValue: 250,
+    singularityChance: 0.2,
     color: "rgba(198, 214, 226, 0.95)"
   },
   gold: {
@@ -20,6 +22,7 @@ export const CRATE_DEFINITIONS = {
     label: "Gold Crate",
     asset: "gold_crate",
     baseValue: 500,
+    singularityChance: 0.4,
     color: "rgba(255, 207, 79, 0.95)"
   }
 };

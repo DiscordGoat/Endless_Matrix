@@ -1,5 +1,6 @@
 import { RARITIES } from "./TowerDefinitions.js";
 import { createDefaultPerks, PERK_DEFINITIONS } from "./PerkDefinitions.js";
+import { createDefaultResearch, getResearchCost, getResearchKey, getResearchNode } from "./ResearchDefinitions.js";
 
 const STORAGE_KEY = "endlessMatrixSaveV1";
 
@@ -8,12 +9,14 @@ const DEFAULT_SAVE = {
   coins: 100,
   gems: 0,
   crates: 0,
+  singularities: 10,
   highestUnlockedLevel: 1,
   completedLevels: [],
   activeRun: null,
   starterCoinsGranted: true,
   starterGemsGranted: true,
   starterCratesGranted: true,
+  starterSingularitiesGranted: true,
   fourEachGemGrant20260629: true,
   gemInventory: [],
   crateInventory: {
@@ -22,6 +25,7 @@ const DEFAULT_SAVE = {
     gold: 0
   },
   perks: createDefaultPerks(),
+  research: createDefaultResearch(),
   towerUnlocks: {
     factory: [],
     minigun: [],
@@ -60,9 +64,20 @@ export class SaveService {
     return this.#save.coins >= amount;
   }
 
+  canAffordSingularities(amount) {
+    return this.#save.singularities >= amount;
+  }
+
   spendCoins(amount) {
     if (!this.canAffordCoins(amount)) return false;
     this.#save.coins -= amount;
+    this.#persist();
+    return true;
+  }
+
+  spendSingularities(amount) {
+    if (!this.canAffordSingularities(amount)) return false;
+    this.#save.singularities -= amount;
     this.#persist();
     return true;
   }
@@ -89,6 +104,11 @@ export class SaveService {
 
   addCoins(amount) {
     this.#save.coins += amount;
+    this.#persist();
+  }
+
+  addSingularities(amount) {
+    this.#save.singularities += Math.max(0, Math.round(Number(amount) || 0));
     this.#persist();
   }
 
@@ -175,6 +195,20 @@ export class SaveService {
     return true;
   }
 
+  upgradeResearch(towerId, researchId) {
+    const node = getResearchNode(towerId, researchId);
+    if (!node) return false;
+
+    const key = getResearchKey(towerId, researchId);
+    const currentCapacity = this.#save.research[key] || 0;
+    const cost = getResearchCost(node, currentCapacity);
+    if (!this.spendSingularities(cost)) return false;
+
+    this.#save.research[key] = currentCapacity + 1;
+    this.#persist();
+    return true;
+  }
+
   #load() {
     try {
       const found = localStorage.getItem(STORAGE_KEY);
@@ -215,6 +249,8 @@ function normalizeSave(save) {
       : [...DEFAULT_SAVE.completedLevels],
     activeRun: normalizeActiveRun(save.activeRun),
     perks: normalizePerks(save.perks),
+    research: normalizeResearch(save.research),
+    singularities: Math.max(0, Math.round(Number(save.singularities) || 0)),
     gemInventory: [...(save.gemInventory || DEFAULT_SAVE.gemInventory)],
     crateInventory: {
       ...DEFAULT_SAVE.crateInventory,
@@ -233,6 +269,11 @@ function normalizeSave(save) {
 
   if (!save.starterCratesGranted) {
     normalized.starterCratesGranted = true;
+  }
+
+  if (!save.starterSingularitiesGranted) {
+    normalized.singularities = (Number(save.singularities) || 0) + 10;
+    normalized.starterSingularitiesGranted = true;
   }
 
   if (!save.fourEachGemGrant20260629) {
@@ -293,6 +334,15 @@ function normalizePerks(perks = {}) {
   );
 }
 
+function normalizeResearch(research = {}) {
+  return Object.fromEntries(
+    Object.entries(DEFAULT_SAVE.research).map(([key, defaultCapacity]) => [
+      key,
+      Math.max(defaultCapacity, Math.round(Number(research[key]) || 0))
+    ])
+  );
+}
+
 function maxEntityId(items) {
   return items.reduce((max, item) => Math.max(max, Math.round(Number(item.id) || 0)), 0);
 }
@@ -323,6 +373,7 @@ function normalizeTower(tower) {
     spent: Math.max(0, Number(tower.spent) || 0),
     cooldown: Number(tower.cooldown) || 0,
     targetPriority: typeof tower.targetPriority === "string" ? tower.targetPriority : "first",
+    research: typeof tower.research === "string" ? tower.research : "",
     angle: Number(tower.angle) || 0
   };
 }
