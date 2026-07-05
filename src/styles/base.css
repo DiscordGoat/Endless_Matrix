@@ -685,22 +685,39 @@ h1 {
   grid-template-rows: auto 1fr auto;
 }
 
-.research-scroll {
+.research-viewport {
   min-height: 0;
-  overflow-y: auto;
-  display: grid;
-  gap: 18px;
-  padding: 4px 6px 10px 0;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(170, 244, 255, 0.24);
+  background: rgba(255, 255, 255, 0.01);
+  cursor: grab;
+  touch-action: none;
+}
+
+.research-viewport:active {
+  cursor: grabbing;
+}
+
+.research-map {
+  position: absolute;
+  left: calc(50% - 420px);
+  top: 28px;
+  width: 840px;
+  height: max(100%, 640px);
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 .research-cluster {
-  min-height: 292px;
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: calc(var(--cluster-index) * 320px);
+  width: 840px;
+  height: 292px;
   border: 1px solid rgba(170, 244, 255, 0.28);
   background: rgba(255, 255, 255, 0.015);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .research-core {
@@ -2247,21 +2264,6 @@ h1 {
     gap: 6px;
   }
 
-  .research-cluster {
-    min-height: 430px;
-  }
-
-  .research-node {
-    left: calc(50% + var(--node-q) * 118px);
-    top: calc(50% + var(--node-r) * 142px);
-    width: 132px;
-    min-height: 94px;
-    padding: 12px 14px;
-  }
-
-  .research-node span {
-    display: none;
-  }
 }
 
 @keyframes screenEnter {

@@ -1,0 +1,64 @@
+ Minigun
+
+  - Tracer Rounds: Prioritizes fast enemies; +20% damage to fast raiders.
+  - Suppressive Fire: Consecutive hits apply a stacking slow.
+  - Ricochet Belt: Bullets have a chance to bounce to one nearby raider.
+  - Overclocked Motor: Fire rate ramps up while shooting the same target.
+  - Hollow Point: Bonus damage to unshielded enemies, reduced shield damage.
+  - Heat Sink: Every 20th shot fires instantly with no cooldown.
+
+  Cannon
+
+  - Cluster Shells: Main shell splits into smaller secondary blasts.
+  - Concussive Payload: Explosions briefly slow raiders.
+  - Siege Round: Bigger damage and splash, much slower reload.
+  - Shrapnel Burst: Explosion sends fragments into nearby enemies.
+  - Crater Maker: Leaves a temporary hazard zone after impact.
+  - Flak Shells: Can target flying enemies, reduced ground damage.
+
+  Raygun
+
+  - Chain Beam: Beam jumps to nearby raiders for reduced damage.
+  - Cryo Focus: Freeze lasts longer, lower damage.
+  - Thermal Lance: No freeze, but ramps damage on the same target.
+  - Phase Beam: Ignores a portion of shields.
+  - Prism Splitter: Fires weaker beams at two targets.
+  - Stasis Lock: Rare chance to fully stop one enemy briefly.
+
+  Anti-Air
+
+  - Proximity Fuse: Missile explodes near flying targets for splash.
+  - Lock-On Array: Faster missile travel and better cooldown.
+  - Interceptor Battery: Fires multiple smaller missiles.
+  - Sky Mine: Deploys delayed aerial mines along the flight path.
+  - Ground Radar: Can hit ground units at reduced damage.
+  - EMP Warhead: Extra shield damage and briefly slows flying enemies.
+
+  Factory
+
+  - Overtime Shift: Generates more resources while a wave is active.
+  - Emergency Reserves: Instantly grants resources when health drops below a threshold.
+  - Assembly Line: Reduces nearby tower upgrade costs.
+  - Recycling Plant: Increases recycle value of nearby towers.
+  - Power Grid: Nearby towers gain attack speed.
+  - Ammo Depot: Nearby cannon/minigun towers gain damage.
+
+  Missile / Launcher-style tower
+  If missile becomes its own tower later:
+
+  - Swarm Rockets: Fires several low-damage rockets.
+  - Thermobaric Payload: Larger explosion, lower direct damage.
+  - Guidance Chip: Retargets if the original target dies.
+  - Bunker Buster: Huge shield/armor damage.
+  - Napalm Trail: Leaves a burning path.
+  - Split Warhead: Missile separates into smaller impacts near the target.
+
+  Universal Research
+  These could apply to any tower type, but I’d use them sparingly:
+
+  - Extended Optics: +15% range.
+  - Rapid Servos: +10% attack speed.
+  - Capacitor Core: +20% shield damage.
+  - Efficiency Tuning: -15% upgrade cost.
+  - Targeting AI: Unlocks smarter priority modes.
+  - Veteran Crew: Tower gains a small bonus after enough kills.
