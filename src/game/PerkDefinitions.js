@@ -1,8 +1,8 @@
 export const SHOP_CELL_COUNT = 100;
 export const SHOP_COLUMN_COUNT = 6;
 export const BASE_COIN_DROP_CHANCE = 0.25;
-export const BASE_GEM_DROP_CHANCE = 0.01;
-export const BASE_CRATE_DROP_CHANCE = 0.01;
+export const BASE_GEM_DROP_CHANCE = 0.02;
+export const BASE_CRATE_DROP_CHANCE = 0.03;
 export const BASE_RAIDER_RESOURCE_MULTIPLIER = 1.5;
 
 export const PERK_DEFINITIONS = {
