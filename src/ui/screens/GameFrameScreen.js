@@ -58,6 +58,7 @@ const RUN_AUTOSAVE_INTERVAL_MS = 10000;
 const TOWER_POPUP_OPEN_DELAY_MS = 50;
 const FPS_SAMPLE_INTERVAL_MS = 250;
 const MAX_ACTIVE_EFFECTS = 140;
+const GAME_SPEEDS = [1, 2, 4, 16];
 const TARGET_PRIORITIES = [
   { id: "strongest", label: "strg" },
   { id: "first", label: "fst" },
@@ -346,26 +347,31 @@ export class GameFrameScreen {
       <header class="gameframe-hud">
         <div class="run-status-strip">
           <div class="run-pill">Level ${this.#level}</div>
-          <div class="run-pill">${this.#flavor.biome.label}</div>
           <div class="run-pill" data-wave-display>Wave ${this.#wave} / ${this.#getWaveCount()}</div>
           <button class="gameframe-end" type="button">End Game</button>
         </div>
         <div class="player-stat-strip">
           <div class="run-pill fps-pill" data-fps-display>FPS --</div>
           <div class="run-pill" data-resource-display>${Math.floor(this.#resources)}R</div>
-          <div class="run-pill" data-run-coin-display>+${this.#runCoins} Coins</div>
-          <div class="run-pill" data-run-gem-display>+${this.#runGems.length} Gems</div>
-          <div class="run-pill" data-run-crate-display>+${this.#runCrates.length} Crates</div>
         </div>
       </header>
       <button class="time-toggle" type="button" aria-label="${this.#running ? "Pause time" : "Start time"}" data-running="${this.#running}">
         <span class="time-icon" aria-hidden="true"></span>
       </button>
-      <div class="speed-options" aria-label="Game speed">
-        <button class="speed-button${this.#gameSpeed === 1 ? " active" : ""}" type="button" data-speed="1">1x</button>
-        <button class="speed-button${this.#gameSpeed === 4 ? " active" : ""}" type="button" data-speed="4">4x</button>
-        <button class="speed-button${this.#gameSpeed === 8 ? " active" : ""}" type="button" data-speed="8">8x</button>
-        <button class="speed-button${this.#gameSpeed === 16 ? " active" : ""}" type="button" data-speed="16">16x</button>
+      <div class="speed-control" aria-label="Game speed">
+        <input
+          class="speed-slider"
+          type="range"
+          min="0"
+          max="${GAME_SPEEDS.length - 1}"
+          step="1"
+          value="${getGameSpeedIndex(this.#gameSpeed)}"
+          aria-label="Game speed"
+          data-speed-slider
+        >
+        <div class="speed-notches" aria-hidden="true">
+          ${GAME_SPEEDS.map((speed) => `<span>${speed}x</span>`).join("")}
+        </div>
       </div>
       <button class="gameframe-back" type="button">Back</button>
       <section class="developer-console" data-developer-console>
@@ -422,10 +428,8 @@ export class GameFrameScreen {
       this.#endGame(context);
     });
 
-    screen.querySelectorAll(".speed-button").forEach((button) => {
-      button.addEventListener("click", () => {
-        this.#setGameSpeed(Number(button.dataset.speed));
-      });
+    screen.querySelector("[data-speed-slider]").addEventListener("input", (event) => {
+      this.#setGameSpeed(GAME_SPEEDS[Number(event.currentTarget.value)] || 1);
     });
 
     screen.querySelector("[data-placement-panel]").addEventListener("click", (event) => {
@@ -568,11 +572,12 @@ export class GameFrameScreen {
   }
 
   #setGameSpeed(speed) {
-    this.#gameSpeed = clamp(speed, 1, 16);
+    this.#gameSpeed = normalizeGameSpeed(speed);
 
-    this.#element.querySelectorAll(".speed-button").forEach((button) => {
-      button.classList.toggle("active", Number(button.dataset.speed) === this.#gameSpeed);
-    });
+    const slider = this.#element.querySelector("[data-speed-slider]");
+    if (slider) {
+      slider.value = String(getGameSpeedIndex(this.#gameSpeed));
+    }
     this.#saveActiveRun();
     this.#requestDraw();
   }
@@ -623,7 +628,7 @@ export class GameFrameScreen {
     this.#nextTowerId = Math.max(1, Math.round(run.nextTowerId || 1));
     this.#running = Boolean(run.running);
     this.#time = Math.max(0, Number(run.time) || 0);
-    this.#gameSpeed = clamp(Number(run.gameSpeed) || 1, 1, 16);
+    this.#gameSpeed = normalizeGameSpeed(run.gameSpeed);
     this.#effects = [];
     this.#lastRunSaveAt = performance.now();
     this.#closeTowerPopup();
@@ -3135,6 +3140,17 @@ function canTowerTargetRaider(tower, raider) {
   if (definition?.flyingOnly) return isFlyingRaider(raider);
   if (!isFlyingRaider(raider)) return true;
   return Boolean(definition?.canTargetFlying);
+}
+
+function normalizeGameSpeed(speed) {
+  const numericSpeed = Number(speed) || 1;
+  return GAME_SPEEDS.reduce((closest, candidate) => (
+    Math.abs(candidate - numericSpeed) < Math.abs(closest - numericSpeed) ? candidate : closest
+  ), GAME_SPEEDS[0]);
+}
+
+function getGameSpeedIndex(speed) {
+  return GAME_SPEEDS.indexOf(normalizeGameSpeed(speed));
 }
 
 function createTierTwoWaveDefinitions(levelOffset) {
