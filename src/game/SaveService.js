@@ -309,6 +309,8 @@ function normalizeActiveRun(run) {
     resources: Math.max(0, Number(run.resources) || 0),
     wave: Math.max(1, Math.round(Number(run.wave) || 1)),
     waveStarted: Boolean(run.waveStarted),
+    waveElapsed: Math.max(0, Number(run.waveElapsed) || 0),
+    waveFactoryInterval: Math.max(0.1, Number(run.waveFactoryInterval) || 30),
     spawning: Boolean(run.spawning),
     spawnQueue: Array.isArray(run.spawnQueue) ? run.spawnQueue.map(normalizeSpawnEntry).filter(Boolean) : [],
     spawnTimer: Number(run.spawnTimer) || 0,
@@ -372,6 +374,7 @@ function normalizeTower(tower) {
     rarity: typeof tower.rarity === "string" ? tower.rarity : "common",
     spent: Math.max(0, Number(tower.spent) || 0),
     cooldown: Number(tower.cooldown) || 0,
+    factoryActivations: Math.max(0, Math.round(Number(tower.factoryActivations) || 0)),
     targetPriority: typeof tower.targetPriority === "string" ? tower.targetPriority : "first",
     research: typeof tower.research === "string" ? tower.research : "",
     angle: Number(tower.angle) || 0
@@ -394,6 +397,7 @@ function normalizeRaider(raider) {
     alive: raider.alive !== false,
     frozenUntil: Math.max(0, Number(raider.frozenUntil) || 0),
     freezeSpeedMultiplier: Number(raider.freezeSpeedMultiplier) || 1,
+    embrittled: Boolean(raider.embrittled),
     flightPhase: typeof raider.flightPhase === "string" ? raider.flightPhase : undefined,
     flightTime: Math.max(0, Number(raider.flightTime) || 0)
   };

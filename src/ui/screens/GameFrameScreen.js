@@ -3,7 +3,7 @@ import { createFlavorFromLevel, createRoadFromLevel, createTilesFromLevel, getTi
 import { getRandomCrate } from "../../game/CrateDefinitions.js";
 import { createRaider, RAIDER_TYPES } from "../../game/RaiderDefinitions.js";
 import { getRandomGem } from "../../game/GemDefinitions.js";
-import { BASE_COIN_DROP_CHANCE, BASE_RAIDER_RESOURCE_MULTIPLIER, getCoinYieldMultiplier, getCrateDropChance, getGemDropChance } from "../../game/PerkDefinitions.js";
+import { BASE_COIN_DROP_CHANCE, BASE_RAIDER_RESOURCE_MULTIPLIER, getCoinYieldMultiplier, getCrateDropChance, getGemDropChance, getStartingResourceBonus } from "../../game/PerkDefinitions.js";
 import { getNextRarity, RARITIES, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
 import { getResearchKey, getResearchNode, getTowerResearchNodes } from "../../game/ResearchDefinitions.js";
 import { getCachedImage } from "../AssetCache.js";
@@ -64,6 +64,7 @@ const RESEARCH_RARITY_INDEX = RARITIES.indexOf("rare");
 const PENETRATION_RADIUS = CELL_SIZE * 2;
 const AIRBURST_BOMB_DELAY_SECONDS = 0.5;
 const AIRBURST_BOMB_RADIUS = CELL_SIZE * 2;
+const FACTORY_ACTIVATIONS_PER_WAVE = 2;
 const TARGET_PRIORITIES = [
   { id: "strongest", label: "strg" },
   { id: "first", label: "fst" },
@@ -290,6 +291,8 @@ export class GameFrameScreen {
   #resources = STARTING_RESOURCES;
   #wave = 1;
   #waveStarted = false;
+  #waveElapsed = 0;
+  #waveFactoryInterval = 30;
   #spawning = false;
   #spawnQueue = [];
   #spawnTimer = 0;
@@ -603,13 +606,15 @@ export class GameFrameScreen {
 
   #resetRunState() {
     this.#playerHealth = PLAYER_MAX_HEALTH;
-    this.#resources = STARTING_RESOURCES;
+    this.#resources = STARTING_RESOURCES + getStartingResourceBonus(this.#saveService.getSnapshot().perks);
     this.#runCoins = 0;
     this.#runGems = [];
     this.#runCrates = [];
     this.#runSettled = false;
     this.#wave = 1;
     this.#waveStarted = false;
+    this.#waveElapsed = 0;
+    this.#waveFactoryInterval = 30;
     this.#spawning = false;
     this.#spawnQueue = [];
     this.#spawnTimer = 0;
@@ -635,6 +640,8 @@ export class GameFrameScreen {
     this.#runSettled = false;
     this.#wave = clamp(Math.round(run.wave || 1), 1, this.#getWaveCount());
     this.#waveStarted = Boolean(run.waveStarted);
+    this.#waveElapsed = Math.max(0, Number(run.waveElapsed) || 0);
+    this.#waveFactoryInterval = Math.max(0.1, Number(run.waveFactoryInterval) || 30);
     this.#spawning = Boolean(run.spawning);
     this.#spawnQueue = [...(run.spawnQueue || [])];
     this.#spawnTimer = Number(run.spawnTimer) || 0;
@@ -672,6 +679,8 @@ export class GameFrameScreen {
       resources: this.#resources,
       wave: this.#wave,
       waveStarted: this.#waveStarted,
+      waveElapsed: this.#waveElapsed,
+      waveFactoryInterval: this.#waveFactoryInterval,
       spawning: this.#spawning,
       spawnQueue: this.#spawnQueue.map((entry) => ({ ...entry })),
       spawnTimer: this.#spawnTimer,
@@ -693,6 +702,9 @@ export class GameFrameScreen {
     this.#spawning = true;
     this.#spawnQueue = this.#buildWaveQueue(this.#wave);
     this.#spawnTimer = 0;
+    this.#waveElapsed = 0;
+    this.#waveFactoryInterval = Math.max(0.1, this.#estimateWaveDuration(this.#spawnQueue) / FACTORY_ACTIVATIONS_PER_WAVE);
+    this.#resetFactoriesForWave();
     this.#syncRunHud();
     this.#saveActiveRun();
   }
@@ -1723,7 +1735,7 @@ export class GameFrameScreen {
       const upgradeButton = this.#element.querySelector("[data-upgrade-tower]");
       if (!definition || !upgradeButton || !nextRarity) return;
       const unlocked = this.#saveService.isTowerUnlocked(tower.type, nextRarity);
-      const cost = definition.rarities[nextRarity].placementCost;
+      const cost = this.#getTowerUpgradeCost(tower, nextRarity);
       upgradeButton.disabled = !unlocked || this.#resources < cost;
     }
   }
@@ -1768,7 +1780,7 @@ export class GameFrameScreen {
       upgradeButton.disabled = true;
     } else {
       const unlocked = this.#saveService.isTowerUnlocked(tower.type, nextRarity);
-      const cost = definition.rarities[nextRarity].placementCost;
+      const cost = this.#getTowerUpgradeCost(tower, nextRarity);
       const nextLabel = RARITY_LABELS[nextRarity];
       upgradeButton.setAttribute("aria-label", unlocked ? `Upgrade tower to ${nextLabel} for ${cost} resources` : `${nextLabel} upgrade locked`);
       upgradeButton.title = unlocked ? `Upgrade - ${cost}R` : `${nextLabel} locked`;
@@ -1823,6 +1835,9 @@ export class GameFrameScreen {
     if (this.#resources < stats.placementCost) return;
 
     this.#resources -= stats.placementCost;
+    const factoryActivations = towerId === "factory" && this.#waveStarted
+      ? Math.min(FACTORY_ACTIVATIONS_PER_WAVE, Math.floor(this.#waveElapsed / this.#waveFactoryInterval))
+      : 0;
     const tower = {
       id: this.#nextTowerId++,
       type: towerId,
@@ -1831,7 +1846,8 @@ export class GameFrameScreen {
       surface: this.#selectedArea.surface || "ground",
       rarity: "common",
       spent: stats.placementCost,
-      cooldown: towerId === "factory" ? stats.attackInterval : 0,
+      cooldown: towerId === "factory" ? Math.max(0, this.#waveFactoryInterval * (factoryActivations + 1) - this.#waveElapsed) : 0,
+      factoryActivations,
       targetPriority: "first",
       research: "",
       angle: -Math.PI / 2
@@ -1965,13 +1981,15 @@ export class GameFrameScreen {
     if (!tower) return;
     const nextRarity = getNextRarity(tower.rarity);
     if (!nextRarity || !this.#saveService.isTowerUnlocked(tower.type, nextRarity)) return;
-    const cost = TOWER_DEFINITIONS[tower.type].rarities[nextRarity].placementCost;
+    const cost = this.#getTowerUpgradeCost(tower, nextRarity);
     if (this.#resources < cost) return;
 
     this.#resources -= cost;
     tower.rarity = nextRarity;
     tower.spent += cost;
-    if (tower.type === "factory" || tower.type === "antiair") {
+    if (tower.type === "factory") {
+      tower.cooldown = Math.min(tower.cooldown, this.#waveFactoryInterval);
+    } else if (tower.type === "antiair") {
       tower.cooldown = Math.min(tower.cooldown, TOWER_DEFINITIONS[tower.type].rarities[nextRarity].attackInterval);
     }
     this.#openTowerPanel(tower);
@@ -1996,7 +2014,19 @@ export class GameFrameScreen {
     return tower.spent * 0.5;
   }
 
+  #getTowerUpgradeCost(tower, rarity) {
+    const baseCost = TOWER_DEFINITIONS[tower.type].rarities[rarity].placementCost;
+    return Math.max(0, baseCost - (this.#hasAssignedResearch("factory", "assembly_line") ? 5 : 0));
+  }
+
+  #hasAssignedResearch(towerId, researchId) {
+    return this.#towers.some((tower) => tower.type === towerId && tower.research === researchId);
+  }
+
   #updateWave(dt) {
+    if (this.#waveStarted) {
+      this.#waveElapsed += dt;
+    }
     this.#updateSpawning(dt);
     this.#updateRaiders(dt);
     this.#rebuildRaiderSpatialIndex();
@@ -2027,6 +2057,7 @@ export class GameFrameScreen {
     if (!this.#waveStarted || this.#spawning || this.#raiders.length > 0) return;
 
     const shouldContinue = this.#running;
+    this.#flushFactoriesForWaveEnd();
     this.#waveStarted = false;
     this.#grantWaveRewards(this.#wave);
 
@@ -2086,6 +2117,7 @@ export class GameFrameScreen {
       if (raider.frozenUntil && this.#time >= raider.frozenUntil) {
         raider.frozenUntil = 0;
         raider.freezeSpeedMultiplier = 1;
+        raider.embrittled = false;
       }
 
       if (isFlyingRaider(raider) && raider.flightPhase === "circling") {
@@ -2143,11 +2175,12 @@ export class GameFrameScreen {
         const center = this.#getTowerCenter(tower);
         const targetPosition = this.#getCachedRaiderPosition(target);
         tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
+        const damage = this.#getTowerHitDamage(tower, stats.damage);
         this.#addTowerShotEffects(tower, center, targetPosition);
-        this.#damageRaider(target, stats.damage, tower);
+        this.#damageRaider(target, damage, tower);
         this.#applyResearchShotEffects(tower, target, stats);
         if (tower.type === "raygun") {
-          this.#freezeRaider(target, tower.rarity);
+          this.#freezeRaider(target, tower);
         }
         tower.cooldown += stats.attackInterval;
         shots++;
@@ -2284,11 +2317,42 @@ export class GameFrameScreen {
   }
 
   #updateFactory(tower, stats) {
-    while (tower.cooldown <= 0) {
-      this.#resources += stats.resourceYield;
-      tower.cooldown += stats.attackInterval;
+    if (!this.#waveStarted || (tower.factoryActivations || 0) >= FACTORY_ACTIVATIONS_PER_WAVE) return;
+
+    while (tower.cooldown <= 0 && (tower.factoryActivations || 0) < FACTORY_ACTIVATIONS_PER_WAVE) {
+      this.#triggerFactory(tower, stats);
       this.#addFactoryBeamEffect(tower);
     }
+  }
+
+  #triggerFactory(tower, stats) {
+    this.#resources += getFactoryResourceYield(tower, stats);
+    tower.factoryActivations = (tower.factoryActivations || 0) + 1;
+    tower.cooldown += this.#waveFactoryInterval;
+  }
+
+  #resetFactoriesForWave() {
+    for (const tower of this.#towers) {
+      if (tower.type !== "factory") continue;
+      tower.factoryActivations = 0;
+      tower.cooldown = this.#waveFactoryInterval;
+    }
+  }
+
+  #flushFactoriesForWaveEnd() {
+    for (const tower of this.#towers) {
+      if (tower.type !== "factory") continue;
+      const stats = getEffectiveTowerStats(tower);
+      while ((tower.factoryActivations || 0) < FACTORY_ACTIVATIONS_PER_WAVE) {
+        this.#triggerFactory(tower, stats);
+        this.#addFactoryBeamEffect(tower);
+      }
+    }
+  }
+
+  #estimateWaveDuration(spawnQueue) {
+    const spawnDuration = spawnQueue.reduce((sum, entry) => sum + (entry.spawnInterval || 0), 0);
+    return Math.max(6, spawnDuration + 8);
   }
 
   #addFactoryBeamEffect(tower) {
@@ -2318,7 +2382,7 @@ export class GameFrameScreen {
       damage: stats.damage,
       tower,
       elapsed: 0,
-      durationSeconds: stats.missileDuration || 5,
+      durationSeconds: getMissileDuration(tower, stats),
       startedAt: performance.now()
     });
   }
@@ -2385,16 +2449,18 @@ export class GameFrameScreen {
     return best;
   }
 
-  #freezeRaider(raider, rarity) {
+  #freezeRaider(raider, tower) {
     if (!raider.alive || isRaiderFrozen(raider, this.#time)) return;
 
-    raider.freezeSpeedMultiplier = RAYGUN_FREEZE_SPEED_MULTIPLIERS[rarity] ?? RAYGUN_FREEZE_SPEED_MULTIPLIERS.common;
-    raider.frozenUntil = this.#time + (RAYGUN_FREEZE_DURATIONS[rarity] ?? RAYGUN_FREEZE_DURATIONS.common);
+    raider.freezeSpeedMultiplier = getRaygunFreezeSpeedMultiplier(tower, raider);
+    raider.frozenUntil = this.#time + (RAYGUN_FREEZE_DURATIONS[tower.rarity] ?? RAYGUN_FREEZE_DURATIONS.common);
+    raider.embrittled = tower.research === "embrittlement";
     this.#revealRaiderBars(raider);
   }
 
   #damageRaider(raider, damage, tower = null) {
-    let remaining = damage;
+    const brittle = isRaiderFrozen(raider, this.#time) && raider.embrittled;
+    let remaining = brittle ? damage * 2 : damage;
     this.#revealRaiderBars(raider);
 
     if (raider.shield > 0) {
@@ -2407,6 +2473,12 @@ export class GameFrameScreen {
     }
 
     raider.health -= remaining;
+
+    if (brittle && raider.alive) {
+      raider.frozenUntil = 0;
+      raider.freezeSpeedMultiplier = 1;
+      raider.embrittled = false;
+    }
 
     if (raider.health <= 0) {
       this.#addRaiderExplosion(raider);
@@ -2471,6 +2543,16 @@ export class GameFrameScreen {
       const targetPosition = this.#getCachedRaiderPosition(target);
       this.#spawnAirburstBombs(tower, targetPosition, stats.damage * 0.25);
     }
+  }
+
+  #getTowerHitDamage(tower, baseDamage) {
+    if (tower.type === "minigun" && tower.research === "headshot" && Math.random() < 0.2) {
+      return baseDamage * 2;
+    }
+    if (tower.type === "cannon" && tower.research === "shellshocked" && Math.random() < 0.2) {
+      return baseDamage * 2;
+    }
+    return baseDamage;
   }
 
   #damageRaidersInRadius(x, y, radius, damage, tower, exclude = null, options = {}) {
@@ -2580,6 +2662,10 @@ export class GameFrameScreen {
 
   #damagePlayer(amount) {
     this.#playerHealth = Math.max(0, this.#playerHealth - amount);
+    const emergencyFactories = this.#towers.filter((tower) => tower.type === "factory" && tower.research === "emergency").length;
+    if (emergencyFactories > 0) {
+      this.#resources += amount * emergencyFactories;
+    }
 
     if (this.#playerHealth <= 0) {
       this.#gameOver = true;
@@ -3517,10 +3603,21 @@ function getEffectiveTowerStats(tower) {
       stats.damage *= 0.5;
     } else if (tower.research === "armor_piercing") {
       stats.attackInterval *= 1.5;
+    } else if (tower.research === "bigger_guns") {
+      stats.attackInterval *= 10;
+      stats.damage *= 2.2;
+    }
+  } else if (tower.type === "raygun") {
+    if (tower.research === "absolute_stasis") {
+      stats.attackInterval *= 10;
     }
   }
 
   return stats;
+}
+
+function getFactoryResourceYield(tower, stats) {
+  return tower.research === "overtime" ? stats.resourceYield * 1.5 : stats.resourceYield;
 }
 
 function getShieldDamageMultiplier(tower) {
@@ -3547,4 +3644,19 @@ function getProjectileDuration(tower) {
   if (tower.type === "raygun") return 155;
   if (tower.type === "minigun" && tower.research === "sniper") return 42;
   return 75;
+}
+
+function getMissileDuration(tower, stats) {
+  const baseDuration = stats.missileDuration || 5;
+  return tower.research === "lock_on_array" ? baseDuration / 1.3 : baseDuration;
+}
+
+function getRaygunFreezeSpeedMultiplier(tower, raider) {
+  if (tower.research === "absolute_stasis") return 0;
+
+  const baseMultiplier = RAYGUN_FREEZE_SPEED_MULTIPLIERS[tower.rarity] ?? RAYGUN_FREEZE_SPEED_MULTIPLIERS.common;
+  let slowBonus = 0;
+  if (tower.research === "cryo") slowBonus += 0.3;
+  if (tower.research === "tracer" && (raider.type === "fastcar" || raider.type === "jet")) slowBonus += 0.6;
+  return Math.max(0, baseMultiplier * (1 - slowBonus));
 }

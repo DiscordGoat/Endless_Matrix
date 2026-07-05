@@ -6,6 +6,8 @@ import {
   getCoinYieldMultiplier,
   getCrateDropChance,
   getGemDropChance,
+  getSingularityChanceBonus,
+  getStartingResourceBonus,
   getPerkRarity,
   getPerkRarityForProgress,
   PERK_DEFINITIONS,
@@ -193,6 +195,8 @@ export class ShopScreen {
   #getEmptyBonus(perkId) {
     if (perkId === "gilded") return "+0% Coin Yield";
     if (perkId === "cratehoarder") return "+0% Crate Chance";
+    if (perkId === "veteran") return "+0 Starting Resources";
+    if (perkId === "multilarity") return "+0% Singularity Chance";
     return "+0% Gem Chance";
   }
 
@@ -213,6 +217,26 @@ export class ShopScreen {
         base: `Base Crate Chance: ${formatPercent(BASE_CRATE_DROP_CHANCE)}`,
         current: getCrateDropChance(perks),
         next: (nextPerks) => getCrateDropChance(nextPerks),
+        format: (value) => formatDecimalPercent(value)
+      };
+    }
+
+    if (perkId === "veteran") {
+      return {
+        label: "Starting Resource Bonus",
+        base: "Base Starting Resources: 10",
+        current: getStartingResourceBonus(perks),
+        next: (nextPerks) => getStartingResourceBonus(nextPerks),
+        format: (value) => `+${value}R`
+      };
+    }
+
+    if (perkId === "multilarity") {
+      return {
+        label: "Singularity Chance Bonus",
+        base: "Added to each crate's Singularity roll",
+        current: getSingularityChanceBonus(perks),
+        next: (nextPerks) => getSingularityChanceBonus(nextPerks),
         format: (value) => formatDecimalPercent(value)
       };
     }

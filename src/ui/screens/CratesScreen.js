@@ -1,5 +1,6 @@
 import { CRATE_DEFINITIONS, CRATE_ORDER } from "../../game/CrateDefinitions.js";
 import { GEM_DEFINITIONS, GEM_ORDER } from "../../game/GemDefinitions.js";
+import { getSingularityChanceBonus } from "../../game/PerkDefinitions.js";
 
 const SLOT_COUNT = 4;
 const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
@@ -36,6 +37,7 @@ export class CratesScreen {
     const inlayGems = this.#inlayIndices.map((index) => save.gemInventory[index]).filter(Boolean);
     const inlayValue = inlayGems.reduce((sum, gemId) => sum + GEM_DEFINITIONS[gemId].sellValue, 0);
     const lootValue = selected.baseValue + inlayValue;
+    const singularityChance = getCrateSingularityChance(selected, save.perks);
     const sortedGems = save.gemInventory
       .map((gemId, index) => ({ gemId, index, definition: GEM_DEFINITIONS[gemId] }))
       .filter((gem) => !this.#inlayIndices.includes(gem.index))
@@ -81,7 +83,7 @@ export class CratesScreen {
               <img src="${RUNTIME_ASSET_BASE}/crates/${selected.asset}.png" alt="" />
               <strong>${selected.label}</strong>
               <span>Loot ${lootValue}-${lootValue * 2}</span>
-              <span class="singularity-chance">${Math.round(selected.singularityChance * 100)}% Singularity</span>
+              <span class="singularity-chance">${Math.round(singularityChance * 100)}% Singularity</span>
               <div class="crate-actions">
                 <button class="wire-button compact" type="button" data-open="one" ${(save.crateInventory[this.#selectedCrate] || 0) <= 0 || this.#opening ? "disabled" : ""}>Open 1</button>
                 <button class="wire-button compact" type="button" data-open="all" ${(save.crateInventory[this.#selectedCrate] || 0) <= 0 || this.#opening ? "disabled" : ""}>Open All</button>
@@ -178,7 +180,8 @@ export class CratesScreen {
     const lootValue = crate.baseValue + inlayValue;
     const reward = Array.from({ length: count }, () => randomInt(lootValue, lootValue * 2))
       .reduce((sum, value) => sum + value, 0);
-    const singularities = Array.from({ length: count }, () => Math.random() < crate.singularityChance ? 1 : 0)
+    const singularityChance = getCrateSingularityChance(crate, save.perks);
+    const singularities = Array.from({ length: count }, () => Math.random() < singularityChance ? 1 : 0)
       .reduce((sum, value) => sum + value, 0);
 
     this.#opening = true;
@@ -264,4 +267,8 @@ export class CratesScreen {
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function getCrateSingularityChance(crate, perks) {
+  return Math.min(1, (crate.singularityChance || 0) + getSingularityChanceBonus(perks));
 }

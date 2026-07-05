@@ -1,4 +1,4 @@
-export const RESEARCH_ORDER = ["minigun", "cannon"];
+export const RESEARCH_ORDER = ["minigun", "cannon", "raygun", "antiair", "factory"];
 
 export const RESEARCH_DEFINITIONS = {
   minigun: {
@@ -44,6 +44,16 @@ export const RESEARCH_DEFINITIONS = {
         summary: "+50% Shield Damage",
         detail: "Deals extra damage to shields.",
         position: { q: -1, r: 0 }
+      },
+      headshot: {
+        id: "headshot",
+        towerId: "minigun",
+        label: "Headshot",
+        shortLabel: "Headshot",
+        cost: 1,
+        summary: "20% Chance for Double Damage",
+        detail: "Each hit has a 20% chance to deal double damage.",
+        position: { q: -1, r: -1 }
       }
     }
   },
@@ -69,6 +79,124 @@ export const RESEARCH_DEFINITIONS = {
         cost: 1,
         summary: "-50% Speed, +80% Shield Damage",
         detail: "Fires slower and hits shields much harder.",
+        position: { q: 1, r: 0 }
+      },
+      shellshocked: {
+        id: "shellshocked",
+        towerId: "cannon",
+        label: "Shellshocked",
+        shortLabel: "Shocked",
+        cost: 1,
+        summary: "20% Chance for Double Damage",
+        detail: "Each hit has a 20% chance to deal double damage.",
+        position: { q: 0, r: -1 }
+      },
+      bigger_guns: {
+        id: "bigger_guns",
+        towerId: "cannon",
+        label: "Bigger Guns",
+        shortLabel: "Big Guns",
+        cost: 1,
+        summary: "-90% Speed, +120% Damage",
+        detail: "Fires much slower, but hits much harder.",
+        position: { q: 0, r: 1 }
+      }
+    }
+  },
+  raygun: {
+    towerId: "raygun",
+    label: "Raygun",
+    nodes: {
+      tracer: {
+        id: "tracer",
+        towerId: "raygun",
+        label: "Tracer",
+        shortLabel: "Tracer",
+        cost: 1,
+        summary: "+60% Slow to Fast Enemies",
+        detail: "Fast enemies are slowed harder by raygun freeze.",
+        position: { q: -1, r: 0 }
+      },
+      cryo: {
+        id: "cryo",
+        towerId: "raygun",
+        label: "Cryo",
+        shortLabel: "Cryo",
+        cost: 1,
+        summary: "+30% Slow Effect",
+        detail: "All raygun freezes slow enemies harder.",
+        position: { q: 1, r: 0 }
+      },
+      embrittlement: {
+        id: "embrittlement",
+        towerId: "raygun",
+        label: "Embrittlement",
+        shortLabel: "Brittle",
+        cost: 1,
+        summary: "Frozen Enemies Take Double Damage",
+        detail: "Damaging a frozen enemy deals double damage, then ends freeze.",
+        position: { q: 0, r: -1 }
+      },
+      absolute_stasis: {
+        id: "absolute_stasis",
+        towerId: "raygun",
+        label: "Absolute Stasis",
+        shortLabel: "Stasis",
+        cost: 1,
+        summary: "-90% Speed, Full Stop",
+        detail: "Fires much slower, but completely stops enemies during freeze.",
+        position: { q: 0, r: 1 }
+      }
+    }
+  },
+  antiair: {
+    towerId: "antiair",
+    label: "Anti Air",
+    nodes: {
+      lock_on_array: {
+        id: "lock_on_array",
+        towerId: "antiair",
+        label: "Lock-on Array",
+        shortLabel: "Lock-on",
+        cost: 1,
+        summary: "+30% Missile Speed",
+        detail: "Missiles reach targets 30% faster.",
+        position: { q: 0, r: -1 }
+      }
+    }
+  },
+  factory: {
+    towerId: "factory",
+    label: "Factory",
+    nodes: {
+      overtime: {
+        id: "overtime",
+        towerId: "factory",
+        label: "Overtime",
+        shortLabel: "Overtime",
+        cost: 1,
+        summary: "+1 Wave of Resources",
+        detail: "Factory output is increased across its two wave activations.",
+        position: { q: -1, r: 0 }
+      },
+      emergency: {
+        id: "emergency",
+        towerId: "factory",
+        label: "Emergency",
+        shortLabel: "Emergency",
+        cost: 1,
+        summary: "Refund Damage as Resources",
+        detail: "When enemies damage you, this factory grants matching resources.",
+        position: { q: 0, r: -1 }
+      },
+      assembly_line: {
+        id: "assembly_line",
+        towerId: "factory",
+        label: "Assembly Line",
+        shortLabel: "Assembly",
+        cost: 1,
+        summary: "-5 Upgrade Cost",
+        detail: "Tower upgrades cost 5 fewer resources. Does not stack.",
         position: { q: 1, r: 0 }
       }
     }

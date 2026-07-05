@@ -39,11 +39,33 @@ export const PERK_DEFINITIONS = {
     getDescription: (level) => `Increase Crate Chance by ${formatDecimalPercent(level * 0.002)}`,
     getShortBonus: (level) => `+${formatDecimalPercent(level * 0.002)} Crate Chance`
   },
+  veteran: {
+    id: "veteran",
+    label: "Veteran",
+    icon: "Gilded",
+    maxLevel: 2,
+    cell: 3,
+    bonusPerLevel: 10,
+    costForLevel: (level) => level * 250,
+    getDescription: (level) => `Start each level with +${level * 10} Resources`,
+    getShortBonus: (level) => `+${level * 10} Starting Resources`
+  },
+  multilarity: {
+    id: "multilarity",
+    label: "Multilarity",
+    icon: "gemseeker",
+    maxLevel: 5,
+    cell: 4,
+    bonusPerLevel: 0.01,
+    costForLevel: (level) => level * 300,
+    getDescription: (level) => `Increase Singularity Chance by ${formatDecimalPercent(level * 0.01)}`,
+    getShortBonus: (level) => `+${formatDecimalPercent(level * 0.01)} Singularity Chance`
+  },
   reserved: {
     id: "reserved",
     label: "Locked Perk",
     maxLevel: 0,
-    cell: 4,
+    cell: 5,
     locked: true,
     getDescription: () => "Empty perk slot",
     getShortBonus: () => "Coming Soon"
@@ -86,6 +108,16 @@ export function getCrateDropChance(perks = {}) {
 export function getCoinYieldMultiplier(perks = {}) {
   const gildedLevel = clampLevel(perks.gilded || 0, PERK_DEFINITIONS.gilded.maxLevel);
   return 1 + gildedLevel * PERK_DEFINITIONS.gilded.bonusPerLevel;
+}
+
+export function getStartingResourceBonus(perks = {}) {
+  const veteranLevel = clampLevel(perks.veteran || 0, PERK_DEFINITIONS.veteran.maxLevel);
+  return veteranLevel * PERK_DEFINITIONS.veteran.bonusPerLevel;
+}
+
+export function getSingularityChanceBonus(perks = {}) {
+  const multilarityLevel = clampLevel(perks.multilarity || 0, PERK_DEFINITIONS.multilarity.maxLevel);
+  return multilarityLevel * PERK_DEFINITIONS.multilarity.bonusPerLevel;
 }
 
 export function formatPercent(value) {

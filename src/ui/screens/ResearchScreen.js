@@ -88,6 +88,11 @@ export class ResearchScreen {
   #handlePointerDown = (event) => {
     const viewport = this.#element?.querySelector("[data-research-viewport]");
     if (!viewport) return;
+    if (event.target.closest("[data-buy-research]")) {
+      this.#dragStart = null;
+      this.#lastPinchDistance = 0;
+      return;
+    }
 
     viewport.setPointerCapture?.(event.pointerId);
     this.#pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -127,7 +132,7 @@ export class ResearchScreen {
     this.#lastPinchDistance = this.#pointers.size === 2 ? this.#getPinchDistance() : 0;
     this.#dragStart = null;
 
-    if (pointer && moved > 8) {
+    if (pointer && moved > 8 && event.target.closest("[data-research-viewport]")) {
       this.#lastTap = { x: event.clientX, y: event.clientY, at: performance.now() };
     }
   };
