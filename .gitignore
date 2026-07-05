@@ -30,6 +30,10 @@ node_modules/
 .vite/
 npm-debug.log*
 
+### Python ###
+__pycache__/
+*.py[cod]
+
 ### Pages build output ###
 dist/assets/crates/
 dist/assets/gems/
