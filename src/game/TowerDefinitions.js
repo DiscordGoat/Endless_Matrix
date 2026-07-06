@@ -97,6 +97,26 @@ export const TOWER_DEFINITIONS = {
       legendary: { placementCost: 160, rangeCells: 12, damage: 50, attackInterval: 1.0 }
     }
   },
+  radar: {
+    id: "radar",
+    label: "Radar",
+    asset: "Radar",
+    footprint: 2,
+    unlockCosts: {
+      common: 100,
+      uncommon: 200,
+      rare: 400,
+      epic: 800,
+      legendary: 1600
+    },
+    rarities: {
+      common: { placementCost: 30, rangeCells: 5, damage: 0, attackInterval: 0.5, revealDuration: 5 },
+      uncommon: { placementCost: 60, rangeCells: 8, damage: 0, attackInterval: 0.4, revealDuration: 6 },
+      rare: { placementCost: 120, rangeCells: 11, damage: 0, attackInterval: 0.3, revealDuration: 7 },
+      epic: { placementCost: 240, rangeCells: 15, damage: 0, attackInterval: 0.2, revealDuration: 8 },
+      legendary: { placementCost: 480, rangeCells: 20, damage: 0, attackInterval: 0.1, revealDuration: 10 }
+    }
+  },
   antiair: {
     id: "antiair",
     label: "Anti Air",

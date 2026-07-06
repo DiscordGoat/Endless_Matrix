@@ -50,11 +50,7 @@ const ASSET_SOURCES = {
 };
 const PLAYER_MAX_HEALTH = 100;
 const STARTING_RESOURCES = 10;
-const DEFAULT_WAVE_COUNT = 20;
-const LEVEL_WAVE_COUNTS = {
-  2: 25,
-  3: 30
-};
+const MAX_AUTHORED_WAVE_COUNT = 100;
 const RUN_AUTOSAVE_INTERVAL_MS = 10000;
 const TOWER_POPUP_OPEN_DELAY_MS = 50;
 const FPS_SAMPLE_INTERVAL_MS = 250;
@@ -92,6 +88,13 @@ const RAIDER_SPAWN_INTERVALS = {
     epic: 1.45,
     legendary: 1.55
   },
+  vertext: {
+    common: 1.15,
+    uncommon: 1.25,
+    rare: 1.35,
+    epic: 1.45,
+    legendary: 1.55
+  },
   fastcar: {
     common: 1.05,
     uncommon: 1.15,
@@ -112,6 +115,27 @@ const RAIDER_SPAWN_INTERVALS = {
     rare: 1.65,
     epic: 1.65,
     legendary: 1.65
+  },
+  nestor: {
+    common: 1.65,
+    uncommon: 1.65,
+    rare: 1.65,
+    epic: 1.65,
+    legendary: 1.65
+  },
+  serpent: {
+    common: 0.82,
+    uncommon: 0.82,
+    rare: 0.82,
+    epic: 0.82,
+    legendary: 0.82
+  },
+  wraith: {
+    common: 0.9,
+    uncommon: 0.95,
+    rare: 1.0,
+    epic: 1.05,
+    legendary: 1.1
   }
 };
 const MAX_TOWER_SHOTS_PER_UPDATE = 32;
@@ -130,116 +154,111 @@ const RAYGUN_FREEZE_DURATIONS = {
   epic: 20,
   legendary: 25
 };
-const WAVE_DEFINITIONS = {
-  1: [{ type: "walker", rarity: "common", count: 10 }],
-  2: [
-    { type: "walker", rarity: "common", count: 10 },
-    { type: "walker", rarity: "uncommon", count: 3 }
-  ],
-  3: [{ type: "walker", rarity: "uncommon", count: 10 }],
-  4: [
-    { type: "walker", rarity: "common", count: 10 },
-    { type: "walker", rarity: "uncommon", count: 10 }
-  ],
-  5: [{ type: "walker", rarity: "uncommon", count: 20 }],
-  6: [{ type: "walker", rarity: "common", count: 50 }],
-  7: [
-    { type: "walker", rarity: "uncommon", count: 20 },
-    { type: "walker", rarity: "rare", count: 3 }
-  ],
-  8: [
-    { type: "walker", rarity: "rare", count: 10 },
-    { type: "walker", rarity: "epic", count: 3 }
-  ],
-  9: [
-    { type: "walker", rarity: "rare", count: 20 },
-    { type: "walker", rarity: "legendary", count: 3 }
-  ],
-  10: [
-    { type: "car", rarity: "common", count: 4 },
-    { type: "walker", rarity: "rare", count: 8 }
-  ],
-  11: [
-    { type: "car", rarity: "common", count: 6 },
-    { type: "walker", rarity: "epic", count: 5 }
-  ],
-  12: [
-    { type: "car", rarity: "uncommon", count: 4 },
-    { type: "walker", rarity: "rare", count: 10 }
-  ],
-  13: [
-    { type: "car", rarity: "rare", count: 3 },
-    { type: "car", rarity: "uncommon", count: 2 }
-  ],
-  14: [
-    { type: "car", rarity: "rare", count: 3 },
-    { type: "fastcar", rarity: "common", count: 8 }
-  ],
-  15: [
-    { type: "car", rarity: "epic", count: 2 },
-    { type: "fastcar", rarity: "common", count: 8 },
-    { type: "walker", rarity: "epic", count: 4 }
-  ],
-  16: [
-    { type: "car", rarity: "epic", count: 2 },
-    { type: "fastcar", rarity: "uncommon", count: 6 },
-    { type: "walker", rarity: "rare", count: 10 }
-  ],
-  17: [
-    { type: "car", rarity: "epic", count: 3 },
-    { type: "fastcar", rarity: "rare", count: 5 },
-    { type: "walker", rarity: "legendary", count: 5 }
-  ],
-  18: [
-    { type: "car", rarity: "epic", count: 4 },
-    { type: "fastcar", rarity: "rare", count: 6 },
-    { type: "walker", rarity: "epic", count: 8 }
-  ],
-  19: [
-    { type: "car", rarity: "epic", count: 5 },
-    { type: "fastcar", rarity: "rare", count: 4 },
-    { type: "walker", rarity: "legendary", count: 10 }
-  ],
-  20: [
-    { type: "heavy_transport", rarity: "uncommon", count: 6 },
-    { type: "car", rarity: "rare", count: 3 },
-    { type: "fastcar", rarity: "rare", count: 6 },
-    { type: "walker", rarity: "legendary", count: 5 }
-  ],
-  21: [
-    { type: "walker", rarity: "rare", count: 22 },
-    { type: "fastcar", rarity: "rare", count: 6 },
-    { type: "car", rarity: "rare", count: 4 }
-  ],
-  22: [
-    { type: "walker", rarity: "epic", count: 10 },
-    { type: "car", rarity: "epic", count: 4 },
-    { type: "fastcar", rarity: "rare", count: 7 }
-  ],
-  23: [
-    { type: "heavy_transport", rarity: "uncommon", count: 4 },
-    { type: "walker", rarity: "legendary", count: 5 },
-    { type: "fastcar", rarity: "rare", count: 8 }
-  ],
-  24: [
-    { type: "heavy_transport", rarity: "rare", count: 3 },
-    { type: "car", rarity: "epic", count: 5 },
-    { type: "walker", rarity: "epic", count: 12 }
-  ],
-  25: [
-    { type: "heavy_transport", rarity: "rare", count: 4 },
-    { type: "car", rarity: "epic", count: 6 },
-    { type: "fastcar", rarity: "rare", count: 8 },
-    { type: "walker", rarity: "legendary", count: 6 }
-  ]
-};
-const LEVEL_WAVE_DEFINITIONS = {
-  21: createTierTwoWaveDefinitions(0),
-  22: createTierTwoWaveDefinitions(1),
-  23: createTierTwoWaveDefinitions(2),
-  24: createTierTwoWaveDefinitions(3),
-  25: createTierTwoWaveDefinitions(4)
-};
+const WAVE_DEFINITIONS = Object.fromEntries([
+  [1, [["walker", "common", 6]]],
+  [2, [["walker", "common", 8]]],
+  [3, [["walker", "common", 10]]],
+  [4, [["walker", "common", 12], ["walker", "uncommon", 1]]],
+  [5, [["walker", "common", 14], ["walker", "uncommon", 2]]],
+  [6, [["walker", "common", 16], ["walker", "uncommon", 3]]],
+  [7, [["walker", "common", 18], ["walker", "uncommon", 4]]],
+  [8, [["walker", "common", 20], ["walker", "uncommon", 5]]],
+  [9, [["walker", "common", 22], ["walker", "uncommon", 6]]],
+  [10, [["walker", "common", 24], ["walker", "uncommon", 8], ["walker", "rare", 1]]],
+  [11, [["walker", "common", 22], ["walker", "uncommon", 8], ["car", "common", 1]]],
+  [12, [["walker", "common", 24], ["walker", "uncommon", 8], ["car", "common", 2]]],
+  [13, [["walker", "common", 24], ["walker", "rare", 3], ["car", "common", 2]]],
+  [14, [["walker", "uncommon", 18], ["walker", "rare", 4], ["car", "common", 3]]],
+  [15, [["walker", "uncommon", 20], ["car", "common", 4], ["fastcar", "common", 2]]],
+  [16, [["walker", "uncommon", 22], ["walker", "rare", 5], ["car", "common", 4], ["fastcar", "common", 3]]],
+  [17, [["walker", "rare", 8], ["car", "common", 5], ["fastcar", "common", 4]]],
+  [18, [["walker", "rare", 10], ["car", "uncommon", 2], ["car", "common", 4], ["fastcar", "common", 5]]],
+  [19, [["walker", "rare", 12], ["car", "uncommon", 3], ["fastcar", "uncommon", 2], ["fastcar", "common", 5]]],
+  [20, [["walker", "rare", 14], ["car", "uncommon", 4], ["fastcar", "uncommon", 4], ["walker", "epic", 2]]],
+  [21, [["walker", "rare", 12], ["car", "uncommon", 4], ["fastcar", "uncommon", 4], ["heavy_transport", "common", 1]]],
+  [22, [["walker", "rare", 14], ["car", "uncommon", 5], ["fastcar", "uncommon", 4], ["heavy_transport", "common", 2]]],
+  [23, [["walker", "rare", 16], ["car", "rare", 2], ["fastcar", "uncommon", 5], ["heavy_transport", "common", 2]]],
+  [24, [["walker", "epic", 4], ["car", "rare", 3], ["fastcar", "uncommon", 6], ["heavy_transport", "common", 3]]],
+  [25, [["walker", "epic", 5], ["car", "rare", 4], ["fastcar", "rare", 2], ["heavy_transport", "uncommon", 2]]],
+  [26, [["walker", "epic", 6], ["car", "rare", 4], ["fastcar", "rare", 3], ["heavy_transport", "uncommon", 3]]],
+  [27, [["walker", "epic", 8], ["car", "rare", 5], ["fastcar", "rare", 3], ["heavy_transport", "uncommon", 4]]],
+  [28, [["walker", "legendary", 2], ["car", "rare", 5], ["fastcar", "rare", 4], ["heavy_transport", "rare", 2]]],
+  [29, [["walker", "legendary", 3], ["car", "epic", 2], ["fastcar", "rare", 5], ["heavy_transport", "rare", 3]]],
+  [30, [["walker", "legendary", 4], ["car", "epic", 3], ["fastcar", "rare", 6], ["heavy_transport", "rare", 4]]],
+  [31, [["walker", "legendary", 3], ["car", "rare", 4], ["fastcar", "rare", 5], ["heavy_transport", "rare", 3], ["jet", "common", 1]]],
+  [32, [["walker", "legendary", 4], ["car", "epic", 2], ["fastcar", "rare", 5], ["heavy_transport", "rare", 3], ["jet", "common", 2]]],
+  [33, [["walker", "legendary", 5], ["car", "epic", 3], ["fastcar", "rare", 6], ["heavy_transport", "rare", 3], ["jet", "common", 3]]],
+  [34, [["car", "epic", 4], ["fastcar", "rare", 7], ["heavy_transport", "rare", 4], ["jet", "common", 4]]],
+  [35, [["walker", "legendary", 6], ["car", "epic", 4], ["fastcar", "epic", 2], ["heavy_transport", "rare", 4], ["jet", "uncommon", 2]]],
+  [36, [["walker", "legendary", 7], ["car", "epic", 5], ["fastcar", "epic", 3], ["heavy_transport", "rare", 5], ["jet", "uncommon", 3]]],
+  [37, [["car", "epic", 5], ["fastcar", "epic", 4], ["heavy_transport", "epic", 2], ["jet", "uncommon", 4]]],
+  [38, [["walker", "legendary", 8], ["car", "epic", 6], ["fastcar", "epic", 4], ["heavy_transport", "epic", 3], ["jet", "rare", 2]]],
+  [39, [["car", "legendary", 2], ["fastcar", "epic", 5], ["heavy_transport", "epic", 4], ["jet", "rare", 3]]],
+  [40, [["walker", "legendary", 10], ["car", "legendary", 3], ["fastcar", "epic", 6], ["heavy_transport", "epic", 5], ["jet", "rare", 4]]],
+  [41, [["walker", "legendary", 8], ["car", "epic", 5], ["heavy_transport", "epic", 4], ["jet", "rare", 3], ["nestor", "common", 1]]],
+  [42, [["walker", "legendary", 8], ["car", "epic", 6], ["fastcar", "epic", 4], ["heavy_transport", "epic", 4], ["jet", "rare", 3], ["nestor", "common", 2]]],
+  [43, [["car", "legendary", 3], ["fastcar", "epic", 5], ["heavy_transport", "epic", 5], ["jet", "rare", 4], ["nestor", "common", 3]]],
+  [44, [["walker", "legendary", 10], ["car", "legendary", 4], ["fastcar", "epic", 5], ["heavy_transport", "epic", 5], ["jet", "rare", 4], ["nestor", "uncommon", 2]]],
+  [45, [["car", "legendary", 4], ["fastcar", "legendary", 2], ["heavy_transport", "epic", 6], ["jet", "rare", 5], ["nestor", "uncommon", 3]]],
+  [46, [["walker", "legendary", 12], ["car", "legendary", 5], ["fastcar", "legendary", 2], ["heavy_transport", "legendary", 2], ["jet", "epic", 2], ["nestor", "uncommon", 4]]],
+  [47, [["car", "legendary", 5], ["fastcar", "legendary", 3], ["heavy_transport", "legendary", 3], ["jet", "epic", 3], ["nestor", "rare", 2]]],
+  [48, [["walker", "legendary", 14], ["car", "legendary", 6], ["fastcar", "legendary", 3], ["heavy_transport", "legendary", 3], ["jet", "epic", 3], ["nestor", "rare", 3]]],
+  [49, [["car", "legendary", 7], ["fastcar", "legendary", 4], ["heavy_transport", "legendary", 4], ["jet", "epic", 4], ["nestor", "epic", 2]]],
+  [50, [["walker", "legendary", 16], ["car", "legendary", 8], ["fastcar", "legendary", 4], ["heavy_transport", "legendary", 5], ["jet", "epic", 5], ["nestor", "epic", 3]]],
+  [51, [["car", "legendary", 6], ["fastcar", "legendary", 4], ["heavy_transport", "legendary", 4], ["jet", "epic", 4], ["nestor", "rare", 3], ["serpent", "common", 8]]],
+  [52, [["car", "legendary", 6], ["fastcar", "legendary", 5], ["heavy_transport", "legendary", 4], ["jet", "epic", 4], ["nestor", "rare", 3], ["serpent", "common", 12]]],
+  [53, [["walker", "legendary", 12], ["car", "legendary", 7], ["fastcar", "legendary", 5], ["heavy_transport", "legendary", 5], ["jet", "epic", 4], ["nestor", "rare", 4], ["serpent", "uncommon", 8]]],
+  [54, [["car", "legendary", 8], ["fastcar", "legendary", 5], ["heavy_transport", "legendary", 5], ["jet", "epic", 5], ["nestor", "epic", 3], ["serpent", "uncommon", 12]]],
+  [55, [["walker", "legendary", 14], ["car", "legendary", 8], ["fastcar", "legendary", 6], ["heavy_transport", "legendary", 5], ["jet", "legendary", 2], ["nestor", "epic", 3], ["serpent", "rare", 8]]],
+  [56, [["car", "legendary", 9], ["fastcar", "legendary", 6], ["heavy_transport", "legendary", 6], ["jet", "legendary", 3], ["nestor", "epic", 4], ["serpent", "rare", 12]]],
+  [57, [["walker", "legendary", 16], ["car", "legendary", 10], ["fastcar", "legendary", 6], ["heavy_transport", "legendary", 6], ["jet", "legendary", 3], ["nestor", "legendary", 2], ["serpent", "epic", 8]]],
+  [58, [["car", "legendary", 10], ["fastcar", "legendary", 7], ["heavy_transport", "legendary", 7], ["jet", "legendary", 4], ["nestor", "legendary", 3], ["serpent", "epic", 10]]],
+  [59, [["walker", "legendary", 18], ["car", "legendary", 11], ["fastcar", "legendary", 7], ["heavy_transport", "legendary", 7], ["jet", "legendary", 4], ["nestor", "legendary", 3], ["serpent", "legendary", 6]]],
+  [60, [["walker", "legendary", 20], ["car", "legendary", 12], ["fastcar", "legendary", 8], ["heavy_transport", "legendary", 8], ["jet", "legendary", 5], ["nestor", "legendary", 4], ["serpent", "legendary", 8]]],
+  [61, [["car", "legendary", 10], ["fastcar", "legendary", 8], ["heavy_transport", "legendary", 7], ["jet", "legendary", 4], ["nestor", "legendary", 3], ["serpent", "epic", 10], ["wraith", "common", 4]]],
+  [62, [["car", "legendary", 10], ["fastcar", "legendary", 8], ["heavy_transport", "legendary", 8], ["jet", "legendary", 4], ["nestor", "legendary", 3], ["serpent", "epic", 12], ["wraith", "common", 6]]],
+  [63, [["walker", "legendary", 16], ["car", "legendary", 11], ["fastcar", "legendary", 8], ["heavy_transport", "legendary", 8], ["jet", "legendary", 5], ["nestor", "legendary", 4], ["serpent", "legendary", 8], ["wraith", "uncommon", 5]]],
+  [64, [["car", "legendary", 12], ["fastcar", "legendary", 9], ["heavy_transport", "legendary", 8], ["jet", "legendary", 5], ["nestor", "legendary", 4], ["serpent", "legendary", 9], ["wraith", "uncommon", 7]]],
+  [65, [["walker", "legendary", 18], ["car", "legendary", 12], ["fastcar", "legendary", 9], ["heavy_transport", "legendary", 9], ["jet", "legendary", 5], ["nestor", "legendary", 4], ["serpent", "legendary", 10], ["wraith", "rare", 5]]],
+  [66, [["car", "legendary", 13], ["fastcar", "legendary", 10], ["heavy_transport", "legendary", 9], ["jet", "legendary", 6], ["nestor", "legendary", 5], ["serpent", "legendary", 10], ["wraith", "rare", 7]]],
+  [67, [["walker", "legendary", 20], ["car", "legendary", 13], ["fastcar", "legendary", 10], ["heavy_transport", "legendary", 10], ["jet", "legendary", 6], ["nestor", "legendary", 5], ["serpent", "legendary", 11], ["wraith", "epic", 5]]],
+  [68, [["car", "legendary", 14], ["fastcar", "legendary", 11], ["heavy_transport", "legendary", 10], ["jet", "legendary", 6], ["nestor", "legendary", 5], ["serpent", "legendary", 12], ["wraith", "epic", 7]]],
+  [69, [["walker", "legendary", 22], ["car", "legendary", 14], ["fastcar", "legendary", 11], ["heavy_transport", "legendary", 11], ["jet", "legendary", 7], ["nestor", "legendary", 6], ["serpent", "legendary", 12], ["wraith", "legendary", 5]]],
+  [70, [["walker", "legendary", 24], ["car", "legendary", 15], ["fastcar", "legendary", 12], ["heavy_transport", "legendary", 12], ["jet", "legendary", 7], ["nestor", "legendary", 6], ["serpent", "legendary", 14], ["wraith", "legendary", 7]]],
+  [71, [["car", "legendary", 12], ["fastcar", "legendary", 12], ["heavy_transport", "legendary", 10], ["jet", "legendary", 7], ["nestor", "legendary", 5], ["serpent", "legendary", 12], ["wraith", "legendary", 6], ["vertext", "common", 1]]],
+  [72, [["car", "legendary", 13], ["fastcar", "legendary", 12], ["heavy_transport", "legendary", 10], ["jet", "legendary", 7], ["nestor", "legendary", 5], ["serpent", "legendary", 13], ["wraith", "legendary", 7], ["vertext", "common", 2]]],
+  [73, [["walker", "legendary", 20], ["car", "legendary", 14], ["fastcar", "legendary", 12], ["heavy_transport", "legendary", 11], ["jet", "legendary", 8], ["nestor", "legendary", 6], ["serpent", "legendary", 13], ["wraith", "legendary", 7], ["vertext", "uncommon", 2]]],
+  [74, [["car", "legendary", 15], ["fastcar", "legendary", 13], ["heavy_transport", "legendary", 11], ["jet", "legendary", 8], ["nestor", "legendary", 6], ["serpent", "legendary", 14], ["wraith", "legendary", 8], ["vertext", "uncommon", 3]]],
+  [75, [["walker", "legendary", 22], ["car", "legendary", 15], ["fastcar", "legendary", 13], ["heavy_transport", "legendary", 12], ["jet", "legendary", 8], ["nestor", "legendary", 6], ["serpent", "legendary", 15], ["wraith", "legendary", 8], ["vertext", "rare", 2]]],
+  [76, [["car", "legendary", 16], ["fastcar", "legendary", 14], ["heavy_transport", "legendary", 12], ["jet", "legendary", 9], ["nestor", "legendary", 7], ["serpent", "legendary", 15], ["wraith", "legendary", 9], ["vertext", "rare", 3]]],
+  [77, [["walker", "legendary", 24], ["car", "legendary", 16], ["fastcar", "legendary", 14], ["heavy_transport", "legendary", 13], ["jet", "legendary", 9], ["nestor", "legendary", 7], ["serpent", "legendary", 16], ["wraith", "legendary", 9], ["vertext", "epic", 2]]],
+  [78, [["car", "legendary", 17], ["fastcar", "legendary", 15], ["heavy_transport", "legendary", 13], ["jet", "legendary", 9], ["nestor", "legendary", 7], ["serpent", "legendary", 17], ["wraith", "legendary", 10], ["vertext", "epic", 3]]],
+  [79, [["walker", "legendary", 26], ["car", "legendary", 18], ["fastcar", "legendary", 15], ["heavy_transport", "legendary", 14], ["jet", "legendary", 10], ["nestor", "legendary", 8], ["serpent", "legendary", 17], ["wraith", "legendary", 10], ["vertext", "legendary", 2]]],
+  [80, [["walker", "legendary", 28], ["car", "legendary", 18], ["fastcar", "legendary", 16], ["heavy_transport", "legendary", 15], ["jet", "legendary", 10], ["nestor", "legendary", 8], ["serpent", "legendary", 18], ["wraith", "legendary", 11], ["vertext", "legendary", 3]]],
+  [81, [["walker", "legendary", 26], ["car", "legendary", 18], ["fastcar", "legendary", 16], ["heavy_transport", "legendary", 14], ["jet", "legendary", 10], ["nestor", "legendary", 8], ["serpent", "legendary", 18], ["wraith", "legendary", 10], ["vertext", "epic", 4]]],
+  [82, [["walker", "legendary", 28], ["car", "legendary", 19], ["fastcar", "legendary", 16], ["heavy_transport", "legendary", 15], ["jet", "legendary", 10], ["nestor", "legendary", 8], ["serpent", "legendary", 19], ["wraith", "legendary", 11], ["vertext", "epic", 5]]],
+  [83, [["walker", "legendary", 30], ["car", "legendary", 19], ["fastcar", "legendary", 17], ["heavy_transport", "legendary", 15], ["jet", "legendary", 11], ["nestor", "legendary", 9], ["serpent", "legendary", 19], ["wraith", "legendary", 11], ["vertext", "legendary", 4]]],
+  [84, [["walker", "legendary", 32], ["car", "legendary", 20], ["fastcar", "legendary", 17], ["heavy_transport", "legendary", 16], ["jet", "legendary", 11], ["nestor", "legendary", 9], ["serpent", "legendary", 20], ["wraith", "legendary", 12], ["vertext", "legendary", 5]]],
+  [85, [["walker", "legendary", 34], ["car", "legendary", 20], ["fastcar", "legendary", 18], ["heavy_transport", "legendary", 16], ["jet", "legendary", 12], ["nestor", "legendary", 9], ["serpent", "legendary", 20], ["wraith", "legendary", 12], ["vertext", "legendary", 6]]],
+  [86, [["walker", "legendary", 36], ["car", "legendary", 21], ["fastcar", "legendary", 18], ["heavy_transport", "legendary", 17], ["jet", "legendary", 12], ["nestor", "legendary", 10], ["serpent", "legendary", 21], ["wraith", "legendary", 13], ["vertext", "legendary", 6]]],
+  [87, [["walker", "legendary", 38], ["car", "legendary", 21], ["fastcar", "legendary", 19], ["heavy_transport", "legendary", 17], ["jet", "legendary", 13], ["nestor", "legendary", 10], ["serpent", "legendary", 22], ["wraith", "legendary", 13], ["vertext", "legendary", 7]]],
+  [88, [["walker", "legendary", 40], ["car", "legendary", 22], ["fastcar", "legendary", 19], ["heavy_transport", "legendary", 18], ["jet", "legendary", 13], ["nestor", "legendary", 10], ["serpent", "legendary", 22], ["wraith", "legendary", 14], ["vertext", "legendary", 8]]],
+  [89, [["walker", "legendary", 42], ["car", "legendary", 22], ["fastcar", "legendary", 20], ["heavy_transport", "legendary", 18], ["jet", "legendary", 14], ["nestor", "legendary", 11], ["serpent", "legendary", 23], ["wraith", "legendary", 14], ["vertext", "legendary", 8]]],
+  [90, [["walker", "legendary", 44], ["car", "legendary", 23], ["fastcar", "legendary", 20], ["heavy_transport", "legendary", 19], ["jet", "legendary", 14], ["nestor", "legendary", 11], ["serpent", "legendary", 24], ["wraith", "legendary", 15], ["vertext", "legendary", 9]]],
+  [91, [["walker", "legendary", 46], ["car", "legendary", 23], ["fastcar", "legendary", 21], ["heavy_transport", "legendary", 19], ["jet", "legendary", 15], ["nestor", "legendary", 11], ["serpent", "legendary", 24], ["wraith", "legendary", 15], ["vertext", "legendary", 9]]],
+  [92, [["walker", "legendary", 48], ["car", "legendary", 24], ["fastcar", "legendary", 21], ["heavy_transport", "legendary", 20], ["jet", "legendary", 15], ["nestor", "legendary", 12], ["serpent", "legendary", 25], ["wraith", "legendary", 16], ["vertext", "legendary", 10]]],
+  [93, [["walker", "legendary", 50], ["car", "legendary", 24], ["fastcar", "legendary", 22], ["heavy_transport", "legendary", 20], ["jet", "legendary", 16], ["nestor", "legendary", 12], ["serpent", "legendary", 26], ["wraith", "legendary", 16], ["vertext", "legendary", 10]]],
+  [94, [["walker", "legendary", 52], ["car", "legendary", 25], ["fastcar", "legendary", 22], ["heavy_transport", "legendary", 21], ["jet", "legendary", 16], ["nestor", "legendary", 12], ["serpent", "legendary", 26], ["wraith", "legendary", 17], ["vertext", "legendary", 11]]],
+  [95, [["walker", "legendary", 54], ["car", "legendary", 25], ["fastcar", "legendary", 23], ["heavy_transport", "legendary", 21], ["jet", "legendary", 17], ["nestor", "legendary", 13], ["serpent", "legendary", 27], ["wraith", "legendary", 17], ["vertext", "legendary", 11]]],
+  [96, [["walker", "legendary", 56], ["car", "legendary", 26], ["fastcar", "legendary", 23], ["heavy_transport", "legendary", 22], ["jet", "legendary", 17], ["nestor", "legendary", 13], ["serpent", "legendary", 28], ["wraith", "legendary", 18], ["vertext", "legendary", 12]]],
+  [97, [["walker", "legendary", 58], ["car", "legendary", 26], ["fastcar", "legendary", 24], ["heavy_transport", "legendary", 22], ["jet", "legendary", 18], ["nestor", "legendary", 13], ["serpent", "legendary", 28], ["wraith", "legendary", 18], ["vertext", "legendary", 12]]],
+  [98, [["walker", "legendary", 60], ["car", "legendary", 27], ["fastcar", "legendary", 24], ["heavy_transport", "legendary", 23], ["jet", "legendary", 18], ["nestor", "legendary", 14], ["serpent", "legendary", 29], ["wraith", "legendary", 19], ["vertext", "legendary", 13]]],
+  [99, [["walker", "legendary", 62], ["car", "legendary", 27], ["fastcar", "legendary", 25], ["heavy_transport", "legendary", 23], ["jet", "legendary", 19], ["nestor", "legendary", 14], ["serpent", "legendary", 30], ["wraith", "legendary", 19], ["vertext", "legendary", 13]]],
+  [100, [["walker", "legendary", 64], ["car", "legendary", 28], ["fastcar", "legendary", 26], ["heavy_transport", "legendary", 24], ["jet", "legendary", 20], ["nestor", "legendary", 15], ["serpent", "legendary", 32], ["wraith", "legendary", 20], ["vertext", "legendary", 15]]]
+].map(([wave, entries]) => [
+  wave,
+  entries.map(([type, rarity, count]) => ({ type, rarity, count }))
+]));
 
 export class GameFrameScreen {
   #flavorManager;
@@ -747,12 +766,11 @@ export class GameFrameScreen {
   }
 
   #getWaveCount() {
-    return LEVEL_WAVE_COUNTS[this.#level] || DEFAULT_WAVE_COUNT;
+    return this.#level <= 20 ? this.#level * 5 : MAX_AUTHORED_WAVE_COUNT;
   }
 
   #getWaveDefinition(wave) {
-    return LEVEL_WAVE_DEFINITIONS[this.#level]?.[wave]
-      || WAVE_DEFINITIONS[wave]
+    return WAVE_DEFINITIONS[wave]
       || [{ type: "walker", rarity: "common", count: Math.min(50, wave * 10) }];
   }
 
@@ -1359,6 +1377,8 @@ export class GameFrameScreen {
         this.#drawAirburstBombEffect(effect, progress);
       } else if (effect.type === "factory-beam") {
         this.#drawFactoryBeamEffect(effect, progress);
+      } else if (effect.type === "radar-pulse") {
+        this.#drawRadarPulseEffect(effect, progress);
       }
     }
   }
@@ -1897,6 +1917,27 @@ export class GameFrameScreen {
     this.#ctx.restore();
   }
 
+  #drawRadarPulseEffect(effect, progress) {
+    const alpha = 1 - progress;
+    const radius = effect.range * (0.18 + progress * 0.82);
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.strokeStyle = withAlpha(effect.color, alpha * 0.42);
+    this.#ctx.lineWidth = 2;
+    this.#ctx.beginPath();
+    this.#ctx.arc(effect.x, effect.y, radius, 0, TAU);
+    this.#ctx.stroke();
+
+    this.#ctx.strokeStyle = withAlpha(effect.color, alpha * 0.72);
+    this.#ctx.lineWidth = 1.5;
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(effect.x, effect.y);
+    this.#ctx.lineTo(effect.to.x, effect.to.y);
+    this.#ctx.stroke();
+    this.#ctx.restore();
+  }
+
   #toggleTowerResearchOptions() {
     if (!this.#selectedTower) return;
     const options = this.#element.querySelector("[data-tower-research-options]");
@@ -2100,11 +2141,12 @@ export class GameFrameScreen {
     this.#saveActiveRun();
   }
 
-  #spawnRaider(type, rarity) {
+  #spawnRaider(type, rarity, options = {}) {
     this.#raiders.push(createRaider({
       type,
       rarity,
-      id: this.#nextRaiderId++
+      id: this.#nextRaiderId++,
+      progress: Math.max(0, Number(options.progress) || 0)
     }));
   }
 
@@ -2148,6 +2190,20 @@ export class GameFrameScreen {
 
       if (tower.type === "factory") {
         this.#updateFactory(tower, stats);
+        continue;
+      }
+
+      if (tower.type === "radar") {
+        if (tower.cooldown <= 0) {
+          const target = this.#findRadarTarget(tower);
+          if (target) {
+            this.#disableRaiderCloak(target, (stats.revealDuration || 5) * 1000);
+            this.#addRadarPulseEffect(tower, target, stats);
+            tower.cooldown = stats.attackInterval;
+          } else {
+            tower.cooldown = 0;
+          }
+        }
         continue;
       }
 
@@ -2367,6 +2423,22 @@ export class GameFrameScreen {
     });
   }
 
+  #addRadarPulseEffect(tower, target, stats) {
+    const center = this.#getTowerCenter(tower);
+    const targetPosition = this.#getCachedRaiderPosition(target);
+    tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
+    this.#effects.push({
+      type: "radar-pulse",
+      x: center.x,
+      y: center.y,
+      to: targetPosition,
+      range: stats.rangeCells * CELL_SIZE,
+      color: RARITY_COLORS[tower.rarity],
+      startedAt: performance.now(),
+      duration: 260
+    });
+  }
+
   #fireAntiAirMissile(tower, target, stats) {
     const center = this.#getTowerCenter(tower);
     const targetPosition = this.#getCachedRaiderPosition(target);
@@ -2387,7 +2459,15 @@ export class GameFrameScreen {
     });
   }
 
-  #findTowerTarget(tower) {
+  #findRadarTarget(tower) {
+    const now = performance.now();
+    const cloakedTarget = this.#findTowerTarget(tower, (raider) => (
+      isCloakedRaider(raider) && !isRaiderCloakDisabled(raider, now)
+    ));
+    return cloakedTarget || this.#findTowerTarget(tower);
+  }
+
+  #findTowerTarget(tower, filter = null) {
     const stats = getEffectiveTowerStats(tower);
     const center = this.#getTowerCenter(tower);
     const range = stats.rangeCells * CELL_SIZE;
@@ -2399,6 +2479,7 @@ export class GameFrameScreen {
 
     for (const raider of this.#getRaiderCandidatesInRange(center, range)) {
       if (!raider.alive) continue;
+      if (filter && !filter(raider)) continue;
       if (!canTowerTargetRaider(tower, raider)) continue;
       const position = this.#getCachedRaiderPosition(raider);
       const dx = position.x - center.x;
@@ -2472,6 +2553,11 @@ export class GameFrameScreen {
       remaining -= rawDamageUsed;
     }
 
+    const damageTakenCap = RAIDER_TYPES[raider.type]?.damageTakenCap;
+    if (Number.isFinite(damageTakenCap)) {
+      remaining = Math.min(remaining, damageTakenCap);
+    }
+
     raider.health -= remaining;
 
     if (brittle && raider.alive) {
@@ -2484,6 +2570,18 @@ export class GameFrameScreen {
       this.#addRaiderExplosion(raider);
       raider.alive = false;
       this.#resources += raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER;
+      this.#handleRaiderDeathSplit(raider);
+    }
+  }
+
+  #handleRaiderDeathSplit(raider) {
+    const split = RAIDER_TYPES[raider.type]?.splitOnDeath;
+    if (!split) return;
+
+    for (let index = 0; index < split.count; index++) {
+      this.#spawnRaider(split.type, raider.rarity, {
+        progress: Math.max(0, raider.progress - index * 0.08)
+      });
     }
   }
 
@@ -2557,7 +2655,7 @@ export class GameFrameScreen {
 
   #damageRaidersInRadius(x, y, radius, damage, tower, exclude = null, options = {}) {
     const radiusSq = radius * radius;
-    const candidates = options.liveScan ? this.#raiders : this.#getRaiderCandidatesInRange({ x, y }, radius);
+    const candidates = options.liveScan ? [...this.#raiders] : this.#getRaiderCandidatesInRange({ x, y }, radius);
     for (const raider of candidates) {
       if (!raider.alive || raider === exclude) continue;
       const position = options.liveScan ? this.#getRaiderPosition(raider) : this.#getCachedRaiderPosition(raider);
@@ -2711,11 +2809,17 @@ export class GameFrameScreen {
       const frameIndex = Math.floor(this.#time / definition.frameDuration) % definition.frames.length;
       const image = this.#assets.get(getRaiderAssetKey(definition, definition.frames[frameIndex], raider.rarity));
 
+      this.#ctx.save();
+      if (isCloakedRaider(raider) && !isRaiderCloakDisabled(raider, now)) {
+        this.#ctx.globalAlpha = getCloakVisibility(this.#time, raider.id);
+      }
+
       if (image?.complete && image.naturalWidth > 0) {
         this.#drawRaiderAsset(raider, image, position);
       } else {
         this.#drawRaiderFallback(raider, position);
       }
+      this.#ctx.restore();
 
       if (this.#shouldDrawRaiderBars(raider, now)) {
         this.#drawRaiderBars(raider, position);
@@ -2727,8 +2831,17 @@ export class GameFrameScreen {
     return (raider.healthBarsVisibleUntil || 0) > now;
   }
 
-  #revealRaiderBars(raider) {
-    raider.healthBarsVisibleUntil = performance.now() + RAIDER_BAR_REVEAL_MS;
+  #revealRaiderBars(raider, durationMs = RAIDER_BAR_REVEAL_MS) {
+    raider.healthBarsVisibleUntil = Math.max(
+      raider.healthBarsVisibleUntil || 0,
+      performance.now() + durationMs
+    );
+  }
+
+  #disableRaiderCloak(raider, durationMs) {
+    const until = performance.now() + durationMs;
+    raider.cloakDisabledUntil = Math.max(raider.cloakDisabledUntil || 0, until);
+    this.#revealRaiderBars(raider, durationMs);
   }
 
   #drawRaiderBars(raider, position) {
@@ -3467,8 +3580,29 @@ function isFlyingRaider(raider) {
   return Boolean(RAIDER_TYPES[raider.type]?.flying);
 }
 
+function isCloakedRaider(raider) {
+  return Boolean(RAIDER_TYPES[raider.type]?.cloaked);
+}
+
+function isRaiderCloakDisabled(raider, now = performance.now()) {
+  return (raider.cloakDisabledUntil || 0) > now;
+}
+
+function getCloakVisibility(time, seed = 0) {
+  return 0.25 + Math.sin(time * 8 + seed * 1.618) * 0.25;
+}
+
+function towerSeesThroughCloak(tower) {
+  return (
+    tower.type === "radar" ||
+    (tower.type === "minigun" && tower.research === "night_vision") ||
+    (tower.type === "cannon" && tower.research === "snare")
+  );
+}
+
 function canTowerTargetRaider(tower, raider) {
   const definition = TOWER_DEFINITIONS[tower.type];
+  if (isCloakedRaider(raider) && !isRaiderCloakDisabled(raider) && !towerSeesThroughCloak(tower)) return false;
   if (definition?.flyingOnly) return isFlyingRaider(raider);
   if (!isFlyingRaider(raider)) return true;
   return Boolean(definition?.canTargetFlying);

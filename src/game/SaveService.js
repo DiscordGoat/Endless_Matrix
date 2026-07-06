@@ -30,7 +30,8 @@ const DEFAULT_SAVE = {
     factory: [],
     minigun: [],
     cannon: [],
-    raygun: []
+    raygun: [],
+    radar: []
   }
 };
 
@@ -398,6 +399,7 @@ function normalizeRaider(raider) {
     frozenUntil: Math.max(0, Number(raider.frozenUntil) || 0),
     freezeSpeedMultiplier: Number(raider.freezeSpeedMultiplier) || 1,
     embrittled: Boolean(raider.embrittled),
+    cloakDisabledUntil: Math.max(0, Number(raider.cloakDisabledUntil) || 0),
     flightPhase: typeof raider.flightPhase === "string" ? raider.flightPhase : undefined,
     flightTime: Math.max(0, Number(raider.flightTime) || 0)
   };

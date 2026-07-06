@@ -54,6 +54,16 @@ export const RESEARCH_DEFINITIONS = {
         summary: "20% Chance for Double Damage",
         detail: "Each hit has a 20% chance to deal double damage.",
         position: { q: -1, r: -1 }
+      },
+      night_vision: {
+        id: "night_vision",
+        towerId: "minigun",
+        label: "Night Vision",
+        shortLabel: "Night",
+        cost: 1,
+        summary: "Sees Cloaked Raiders",
+        detail: "Can target cloaked enemies without disabling their cloak.",
+        position: { q: 1, r: -1 }
       }
     }
   },
@@ -100,6 +110,16 @@ export const RESEARCH_DEFINITIONS = {
         summary: "-90% Speed, +120% Damage",
         detail: "Fires much slower, but hits much harder.",
         position: { q: 0, r: 1 }
+      },
+      snare: {
+        id: "snare",
+        towerId: "cannon",
+        label: "Snare",
+        shortLabel: "Snare",
+        cost: 1,
+        summary: "Sees Cloaked Raiders",
+        detail: "Can target cloaked enemies without disabling their cloak.",
+        position: { q: 1, r: -1 }
       }
     }
   },
