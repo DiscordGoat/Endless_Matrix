@@ -12,6 +12,7 @@ import { CratesScreen } from "./ui/screens/CratesScreen.js";
 import { ShopScreen } from "./ui/screens/ShopScreen.js";
 import { ResearchScreen } from "./ui/screens/ResearchScreen.js";
 import { GameEndScreen } from "./ui/screens/GameEndScreen.js";
+import { SettingsGUI } from "./ui/screens/SettingsGUI.js";
 import { preloadImages } from "./ui/AssetCache.js";
 
 const appRoot = document.querySelector("#app");
@@ -30,6 +31,7 @@ screenManager.register("shop", new ShopScreen({ saveService }));
 screenManager.register("research", new ResearchScreen({ saveService }));
 screenManager.register("game-frame", new GameFrameScreen({ flavorManager, saveService }));
 screenManager.register("game-end", new GameEndScreen({ saveService }));
+screenManager.register("settings", new SettingsGUI({ saveService }));
 screenManager.show("main-menu");
 
 const preloadRuntimeAssets = () => {

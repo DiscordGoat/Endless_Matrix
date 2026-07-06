@@ -37,15 +37,7 @@ export class MainMenuScreen {
     });
 
     screen.querySelector('[data-action="settings"]').addEventListener("click", () => {
-      screen.querySelector('[data-action="settings"]').animate(
-        [
-          { transform: "translateX(0)" },
-          { transform: "translateX(-4px)" },
-          { transform: "translateX(4px)" },
-          { transform: "translateX(0)" }
-        ],
-        { duration: 180, easing: "ease-out" }
-      );
+      context.navigate("settings");
     });
 
     this.#element = screen;

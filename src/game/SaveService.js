@@ -46,6 +46,11 @@ export class SaveService {
     return structuredClone(this.#save);
   }
 
+  resetAccount() {
+    this.#save = normalizeSave(structuredClone(DEFAULT_SAVE));
+    this.#persist();
+  }
+
   getActiveRun() {
     return this.#save.activeRun ? structuredClone(this.#save.activeRun) : null;
   }
