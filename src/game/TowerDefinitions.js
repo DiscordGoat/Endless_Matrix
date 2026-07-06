@@ -30,11 +30,11 @@ export const TOWER_DEFINITIONS = {
       legendary: 1600
     },
     rarities: {
-      common: { placementCost: 50, rangeCells: 0, resourceYield: 10, attackInterval: 30.0 },
-      uncommon: { placementCost: 100, rangeCells: 0, resourceYield: 20, attackInterval: 30.0 },
-      rare: { placementCost: 200, rangeCells: 0, resourceYield: 30, attackInterval: 30.0 },
-      epic: { placementCost: 400, rangeCells: 0, resourceYield: 40, attackInterval: 30.0 },
-      legendary: { placementCost: 800, rangeCells: 0, resourceYield: 50, attackInterval: 30.0 }
+      common: { placementCost: 20, rangeCells: 0, rarityMultiplier: 1, attackInterval: 30.0 },
+      uncommon: { placementCost: 40, rangeCells: 0, rarityMultiplier: 2, attackInterval: 30.0 },
+      rare: { placementCost: 80, rangeCells: 0, rarityMultiplier: 3, attackInterval: 30.0 },
+      epic: { placementCost: 160, rangeCells: 0, rarityMultiplier: 4, attackInterval: 30.0 },
+      legendary: { placementCost: 320, rangeCells: 0, rarityMultiplier: 5, attackInterval: 30.0 }
     }
   },
   minigun: {

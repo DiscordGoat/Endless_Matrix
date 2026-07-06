@@ -381,6 +381,7 @@ function normalizeTower(tower) {
     spent: Math.max(0, Number(tower.spent) || 0),
     cooldown: Number(tower.cooldown) || 0,
     factoryActivations: Math.max(0, Math.round(Number(tower.factoryActivations) || 0)),
+    creditAge: Math.max(1, Math.round(Number(tower.creditAge) || 1)),
     targetPriority: typeof tower.targetPriority === "string" ? tower.targetPriority : "first",
     research: typeof tower.research === "string" ? tower.research : "",
     angle: Number(tower.angle) || 0

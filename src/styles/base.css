@@ -1892,7 +1892,8 @@ h1 {
 }
 
 .tower-popup-actions[data-placement-panel] {
-  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 5px;
 }
 
 .target-priority-group {
@@ -1946,8 +1947,23 @@ h1 {
   text-transform: uppercase;
 }
 
+.factory-credit-info {
+  min-height: 20px;
+  padding: 4px 6px;
+  border: 1px solid rgba(170, 244, 255, 0.24);
+  color: rgba(144, 222, 120, 0.9);
+  background: rgba(144, 222, 120, 0.055);
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tower-popup-button {
-  min-height: 32px;
+  min-height: 30px;
   border: 1px solid rgba(170, 244, 255, 0.48);
   background: rgba(255, 255, 255, 0.025);
   color: rgba(224, 252, 255, 0.94);
@@ -1966,7 +1982,7 @@ h1 {
 }
 
 .tower-action-button {
-  min-height: 40px;
+  min-height: 36px;
   padding: 5px 6px;
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
@@ -1976,7 +1992,7 @@ h1 {
 }
 
 .tower-research-button {
-  min-height: 30px;
+  min-height: 28px;
   padding: 4px 6px;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
@@ -2129,16 +2145,16 @@ h1 {
 
 .tower-placement-icon {
   aspect-ratio: 1;
-  min-height: 54px;
-  padding: 8px;
+  min-height: 44px;
+  padding: 6px;
   display: grid;
   place-items: center;
   background: transparent;
 }
 
 .tower-placement-icon img {
-  width: min(100%, 42px);
-  height: min(100%, 42px);
+  width: min(100%, 34px);
+  height: min(100%, 34px);
   object-fit: contain;
   filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.48));
   pointer-events: none;

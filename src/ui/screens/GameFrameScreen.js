@@ -61,6 +61,7 @@ const PENETRATION_RADIUS = CELL_SIZE * 2;
 const AIRBURST_BOMB_DELAY_SECONDS = 0.5;
 const AIRBURST_BOMB_RADIUS = CELL_SIZE * 2;
 const FACTORY_ACTIVATIONS_PER_WAVE = 2;
+const FACTORY_SLOT_MULTIPLIERS = [1, 0.7, 0.5, 0.35, 0.25];
 const TARGET_PRIORITIES = [
   { id: "strongest", label: "strg" },
   { id: "first", label: "fst" },
@@ -424,6 +425,7 @@ export class GameFrameScreen {
         <div class="tower-popup-actions" data-placement-panel></div>
         <div class="tower-popup-actions" data-tower-panel>
           <div class="target-priority-group" data-target-priority-group aria-label="Target priority"></div>
+          <div class="factory-credit-info" data-factory-credit-info hidden></div>
           <div class="tower-research-summary" data-tower-research-summary></div>
           <button class="tower-popup-button tower-research-button" type="button" data-open-research>
             <span class="tower-action-icon research" aria-hidden="true">
@@ -1772,6 +1774,7 @@ export class GameFrameScreen {
     const nextRarity = getNextRarity(tower.rarity);
     const definition = TOWER_DEFINITIONS[tower.type];
     const priorityGroup = this.#element.querySelector("[data-target-priority-group]");
+    const factoryInfo = this.#element.querySelector("[data-factory-credit-info]");
 
     title.textContent = `${RARITY_LABELS[tower.rarity]} ${definition.label}`;
     this.#refreshTowerResearchControls(tower, { open: false });
@@ -1791,6 +1794,17 @@ export class GameFrameScreen {
         `).join("")}
       </div>
     `;
+
+    if (tower.type === "factory") {
+      const stats = getEffectiveTowerStats(tower);
+      const creditAge = this.#getFactoryCreditAge(tower);
+      const yieldPerWave = getFactoryResourceYield(tower, stats, this.#getFactorySlotMultiplier(tower), creditAge);
+      factoryInfo.hidden = false;
+      factoryInfo.textContent = `Credit Age: ${creditAge} | Yield: ${yieldPerWave}R/wave`;
+    } else {
+      factoryInfo.hidden = true;
+      factoryInfo.textContent = "";
+    }
 
     if (!nextRarity) {
       upgradeButton.setAttribute("aria-label", "Tower is already at max tier");
@@ -1868,6 +1882,7 @@ export class GameFrameScreen {
       spent: stats.placementCost,
       cooldown: towerId === "factory" ? Math.max(0, this.#waveFactoryInterval * (factoryActivations + 1) - this.#waveElapsed) : 0,
       factoryActivations,
+      creditAge: 1,
       targetPriority: "first",
       research: "",
       angle: -Math.PI / 2
@@ -2099,6 +2114,7 @@ export class GameFrameScreen {
 
     const shouldContinue = this.#running;
     this.#flushFactoriesForWaveEnd();
+    this.#ageFactoriesForWaveEnd();
     this.#waveStarted = false;
     this.#grantWaveRewards(this.#wave);
 
@@ -2382,7 +2398,7 @@ export class GameFrameScreen {
   }
 
   #triggerFactory(tower, stats) {
-    this.#resources += getFactoryResourceYield(tower, stats);
+    this.#resources += this.#getFactoryActivationYield(tower, stats);
     tower.factoryActivations = (tower.factoryActivations || 0) + 1;
     tower.cooldown += this.#waveFactoryInterval;
   }
@@ -2404,6 +2420,31 @@ export class GameFrameScreen {
         this.#addFactoryBeamEffect(tower);
       }
     }
+  }
+
+  #ageFactoriesForWaveEnd() {
+    for (const tower of this.#towers) {
+      if (tower.type !== "factory") continue;
+      tower.creditAge = this.#getFactoryCreditAge(tower) + 1;
+    }
+  }
+
+  #getFactoryCreditAge(tower) {
+    return Math.max(1, Math.round(Number(tower.creditAge) || 1));
+  }
+
+  #getFactoryActivationYield(tower, stats) {
+    const totalYield = getFactoryResourceYield(tower, stats, this.#getFactorySlotMultiplier(tower), this.#getFactoryCreditAge(tower));
+    const firstActivation = Math.floor(totalYield * 0.5);
+    return (tower.factoryActivations || 0) <= 0 ? firstActivation : totalYield - firstActivation;
+  }
+
+  #getFactorySlotMultiplier(tower) {
+    const factories = this.#towers
+      .filter((candidate) => candidate.type === "factory")
+      .sort((a, b) => a.id - b.id);
+    const index = Math.max(0, factories.findIndex((candidate) => candidate === tower));
+    return FACTORY_SLOT_MULTIPLIERS[index] ?? FACTORY_SLOT_MULTIPLIERS.at(-1);
   }
 
   #estimateWaveDuration(spawnQueue) {
@@ -3750,8 +3791,9 @@ function getEffectiveTowerStats(tower) {
   return stats;
 }
 
-function getFactoryResourceYield(tower, stats) {
-  return tower.research === "overtime" ? stats.resourceYield * 1.5 : stats.resourceYield;
+function getFactoryResourceYield(tower, stats, slotMultiplier, creditAge) {
+  const baseYield = Math.ceil((creditAge / 4) * (stats.rarityMultiplier || 1) * slotMultiplier);
+  return tower.research === "overtime" ? Math.ceil(baseYield * 1.5) : baseYield;
 }
 
 function getShieldDamageMultiplier(tower) {
