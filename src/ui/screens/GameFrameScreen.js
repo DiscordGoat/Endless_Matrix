@@ -72,7 +72,7 @@ const DEVELOPER_COMMANDS = ["spawnraider", "setresources", "giveitem", "telemetr
 const GIVE_ITEM_SUGGESTIONS = ["singularity", "copper", "bronze", "silver", "gold"];
 const WAVE_SPAWN_INTERVAL = 0.45;
 const WAVE_SPAWN_SPACING_MULTIPLIER = 1.6;
-const JET_ORBIT_CIRCUITS = 3;
+const JET_ORBIT_CIRCUITS_BY_RARITY = Object.fromEntries(RARITIES.map((rarity, index) => [rarity, index + 1]));
 const JET_ORBIT_DURATION = 10;
 const JET_ORBIT_RADIUS_CELLS = 600 / 100 * JET_ORBIT_DURATION / TAU;
 const JET_ENTRY_PROGRESS_CELLS = Math.max(2, JET_ORBIT_RADIUS_CELLS);
@@ -2718,7 +2718,7 @@ export class GameFrameScreen {
       if (isFlyingRaider(raider) && raider.flightPhase === "circling") {
         raider.flightTime = (Number(raider.flightTime) || 0) + dt;
 
-        if (raider.flightTime >= JET_ORBIT_CIRCUITS * JET_ORBIT_DURATION) {
+        if (raider.flightTime >= getJetOrbitCircuits(raider.rarity) * JET_ORBIT_DURATION) {
           raider.flightPhase = "road";
           raider.progress = 0;
         }
@@ -4462,6 +4462,10 @@ function getTowerDrawAssetKey(definition, tower) {
 
 function getRaiderAssetKey(definition, asset, rarity) {
   return definition.usesRarityAssets === false ? asset : getRarityAssetName(asset, rarity);
+}
+
+function getJetOrbitCircuits(rarity) {
+  return JET_ORBIT_CIRCUITS_BY_RARITY[rarity] || JET_ORBIT_CIRCUITS_BY_RARITY.rare || 3;
 }
 
 function getTowerFootprint(definition) {

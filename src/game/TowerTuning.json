@@ -12,25 +12,25 @@
         "uncommon": {
           "placementCost": 40,
           "rangeCells": 0,
-          "rarityMultiplier": 1.5,
+          "rarityMultiplier": 1.35,
           "attackInterval": 30
         },
         "rare": {
           "placementCost": 80,
           "rangeCells": 0,
-          "rarityMultiplier": 2,
+          "rarityMultiplier": 1.7,
           "attackInterval": 30
         },
         "epic": {
           "placementCost": 160,
           "rangeCells": 0,
-          "rarityMultiplier": 2.5,
+          "rarityMultiplier": 2.05,
           "attackInterval": 30
         },
         "legendary": {
           "placementCost": 320,
           "rangeCells": 0,
-          "rarityMultiplier": 3,
+          "rarityMultiplier": 2.4,
           "attackInterval": 30
         }
       },
@@ -83,42 +83,42 @@
         "common": {
           "placementCost": 10,
           "rangeCells": 3,
-          "damage": 10,
+          "damage": 12,
           "attackInterval": 0.1
         },
         "uncommon": {
           "placementCost": 20,
           "rangeCells": 4,
-          "damage": 15,
+          "damage": 18,
           "attackInterval": 0.1
         },
         "rare": {
           "placementCost": 40,
           "rangeCells": 5,
-          "damage": 20,
+          "damage": 24,
           "attackInterval": 0.1
         },
         "epic": {
           "placementCost": 80,
           "rangeCells": 6,
-          "damage": 25,
+          "damage": 30,
           "attackInterval": 0.07
         },
         "legendary": {
           "placementCost": 160,
           "rangeCells": 7,
-          "damage": 30,
+          "damage": 36,
           "attackInterval": 0.05
         }
       },
       "combat": {
-        "shieldDamageMultiplier": 0.3,
-        "projectileDurationMs": 100
+        "shieldDamageMultiplier": 0.5,
+        "projectileDurationMs": 250
       },
       "research": {
         "gatling": {
           "statMultipliers": {
-            "attackInterval": 0.7
+            "attackInterval": 0.8
           },
           "effects": {
             "muzzleDurationMs": 40
@@ -128,12 +128,12 @@
         },
         "high_caliber": {
           "statMultipliers": {
-            "attackInterval": 1.3
+            "attackInterval": 3
           },
           "effects": {
             "penetrationChance": 0.6,
             "penetrationRadiusCells": 1,
-            "penetrationDamageMultiplier": 1
+            "penetrationDamageMultiplier": 0.4
           },
           "statAdd": {
             "shieldDamageMultiplier": 1.3
@@ -142,14 +142,15 @@
         },
         "sniper": {
           "statMultipliers": {
-            "attackInterval": 10,
-            "rangeCells": 1.6
+            "attackInterval": 6,
+            "rangeCells": 1.6,
+            "damage": 10
           },
           "effects": {
             "penetrationChance": 1,
             "penetrationRadiusCells": 2,
-            "penetrationDamageMultiplier": 10,
-            "projectileDurationMs": 300
+            "penetrationDamageMultiplier": 1,
+            "projectileDurationMs": 500
           },
           "statAdd": {},
           "statOverrides": {}
@@ -184,31 +185,31 @@
         "common": {
           "placementCost": 20,
           "rangeCells": 5,
-          "damage": 100,
+          "damage": 90,
           "attackInterval": 3
         },
         "uncommon": {
           "placementCost": 40,
           "rangeCells": 7,
-          "damage": 200,
+          "damage": 170,
           "attackInterval": 2.8
         },
         "rare": {
           "placementCost": 80,
           "rangeCells": 9,
-          "damage": 400,
+          "damage": 300,
           "attackInterval": 2.6
         },
         "epic": {
           "placementCost": 160,
           "rangeCells": 11,
-          "damage": 800,
+          "damage": 500,
           "attackInterval": 2.4
         },
         "legendary": {
           "placementCost": 320,
           "rangeCells": 13,
-          "damage": 2000,
+          "damage": 1300,
           "attackInterval": 2.2
         }
       },
@@ -233,17 +234,17 @@
         },
         "armor_piercing": {
           "statMultipliers": {
-            "attackInterval": 1.5
+            "attackInterval": 1.75
           },
           "effects": {
-            "shieldDamageMultiplier": 2
+            "shieldDamageMultiplier": 1.35
           },
           "statAdd": {},
           "statOverrides": {}
         },
         "shellshocked": {
           "effects": {
-            "criticalChance": 0.2,
+            "criticalChance": 0.15,
             "criticalDamageMultiplier": 2
           },
           "statMultipliers": {},
