@@ -424,7 +424,7 @@ export function createRaider({ type, rarity, id, progress = 0 }) {
   };
 
   if (definition.flying) {
-    raider.flightPhase = "circling";
+    raider.flightPhase = "entry";
     raider.flightTime = 0;
   }
 
