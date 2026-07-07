@@ -1,3 +1,5 @@
+import TOWER_TUNING from "./TowerTuning.json";
+
 export const RARITIES = ["common", "uncommon", "rare", "epic", "legendary"];
 
 export const RARITY_LABELS = {
@@ -29,13 +31,7 @@ export const TOWER_DEFINITIONS = {
       epic: 800,
       legendary: 1600
     },
-    rarities: {
-      common: { placementCost: 20, rangeCells: 0, rarityMultiplier: 1, attackInterval: 30.0 },
-      uncommon: { placementCost: 40, rangeCells: 0, rarityMultiplier: 2, attackInterval: 30.0 },
-      rare: { placementCost: 80, rangeCells: 0, rarityMultiplier: 3, attackInterval: 30.0 },
-      epic: { placementCost: 160, rangeCells: 0, rarityMultiplier: 4, attackInterval: 30.0 },
-      legendary: { placementCost: 320, rangeCells: 0, rarityMultiplier: 5, attackInterval: 30.0 }
-    }
+    rarities: TOWER_TUNING.towers.factory.rarities
   },
   minigun: {
     id: "minigun",
@@ -49,13 +45,7 @@ export const TOWER_DEFINITIONS = {
       epic: 800,
       legendary: 1600
     },
-    rarities: {
-      common: { placementCost: 10, rangeCells: 3, damage: 10, attackInterval: 0.1 },
-      uncommon: { placementCost: 20, rangeCells: 4, damage: 15, attackInterval: 0.1 },
-      rare: { placementCost: 40, rangeCells: 5, damage: 20, attackInterval: 0.1 },
-      epic: { placementCost: 80, rangeCells: 6, damage: 25, attackInterval: 0.1 },
-      legendary: { placementCost: 160, rangeCells: 7, damage: 30, attackInterval: 0.1 }
-    }
+    rarities: TOWER_TUNING.towers.minigun.rarities
   },
   cannon: {
     id: "cannon",
@@ -69,13 +59,7 @@ export const TOWER_DEFINITIONS = {
       epic: 800,
       legendary: 1600
     },
-    rarities: {
-      common: { placementCost: 20, rangeCells: 5, damage: 100, attackInterval: 3.0 },
-      uncommon: { placementCost: 40, rangeCells: 7, damage: 200, attackInterval: 2.8 },
-      rare: { placementCost: 80, rangeCells: 9, damage: 400, attackInterval: 2.6 },
-      epic: { placementCost: 160, rangeCells: 11, damage: 800, attackInterval: 2.4 },
-      legendary: { placementCost: 320, rangeCells: 13, damage: 1600, attackInterval: 2.2 }
-    }
+    rarities: TOWER_TUNING.towers.cannon.rarities
   },
   raygun: {
     id: "raygun",
@@ -89,13 +73,7 @@ export const TOWER_DEFINITIONS = {
       epic: 800,
       legendary: 1600
     },
-    rarities: {
-      common: { placementCost: 10, rangeCells: 3, damage: 10, attackInterval: 2.0 },
-      uncommon: { placementCost: 20, rangeCells: 4, damage: 20, attackInterval: 1.8 },
-      rare: { placementCost: 40, rangeCells: 5, damage: 30, attackInterval: 1.6 },
-      epic: { placementCost: 80, rangeCells: 6, damage: 40, attackInterval: 1.4 },
-      legendary: { placementCost: 160, rangeCells: 12, damage: 50, attackInterval: 1.0 }
-    }
+    rarities: TOWER_TUNING.towers.raygun.rarities
   },
   radar: {
     id: "radar",
@@ -109,13 +87,7 @@ export const TOWER_DEFINITIONS = {
       epic: 800,
       legendary: 1600
     },
-    rarities: {
-      common: { placementCost: 30, rangeCells: 5, damage: 0, attackInterval: 0.5, revealDuration: 5 },
-      uncommon: { placementCost: 60, rangeCells: 8, damage: 0, attackInterval: 0.4, revealDuration: 6 },
-      rare: { placementCost: 120, rangeCells: 11, damage: 0, attackInterval: 0.3, revealDuration: 7 },
-      epic: { placementCost: 240, rangeCells: 15, damage: 0, attackInterval: 0.2, revealDuration: 8 },
-      legendary: { placementCost: 480, rangeCells: 20, damage: 0, attackInterval: 0.1, revealDuration: 10 }
-    }
+    rarities: TOWER_TUNING.towers.radar.rarities
   },
   antiair: {
     id: "antiair",
@@ -133,13 +105,7 @@ export const TOWER_DEFINITIONS = {
       epic: 800,
       legendary: 1600
     },
-    rarities: {
-      common: { placementCost: 30, rangeCells: 15, damage: 100, attackInterval: 30.0, missileDuration: 5.0 },
-      uncommon: { placementCost: 60, rangeCells: 25, damage: 150, attackInterval: 25.0, missileDuration: 5.0 },
-      rare: { placementCost: 120, rangeCells: 35, damage: 200, attackInterval: 20.0, missileDuration: 5.0 },
-      epic: { placementCost: 240, rangeCells: 45, damage: 250, attackInterval: 15.0, missileDuration: 5.0 },
-      legendary: { placementCost: 480, rangeCells: 55, damage: 300, attackInterval: 10.0, missileDuration: 5.0 }
-    }
+    rarities: TOWER_TUNING.towers.antiair.rarities
   }
 };
 

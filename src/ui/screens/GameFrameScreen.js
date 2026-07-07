@@ -7,6 +7,7 @@ import { BASE_COIN_DROP_CHANCE, BASE_RAIDER_RESOURCE_MULTIPLIER, getCoinYieldMul
 import { getNextRarity, RARITIES, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
 import { RunTelemetry, copyLatestTelemetryRun, downloadLatestTelemetryRun, enableTelemetry, isTelemetryEnabled } from "../../game/TelemetryService.js";
 import { getResearchKey, getResearchNode, getTowerResearchNodes } from "../../game/ResearchDefinitions.js";
+import { applyResearchStatTuning, getCombatNumber, getCombatRarityNumber, getResearchEffectNumber } from "../../game/TowerTuning.js";
 import { getCachedImage } from "../AssetCache.js";
 import { queueCoinReward, queueGemReward, queueTextReward } from "../RewardPopup.js";
 
@@ -58,13 +59,8 @@ const FPS_SAMPLE_INTERVAL_MS = 250;
 const MAX_ACTIVE_EFFECTS = 140;
 const GAME_SPEEDS = [1, 2, 4, 16];
 const RESEARCH_RARITY_INDEX = RARITIES.indexOf("rare");
-const PENETRATION_RADIUS = CELL_SIZE * 2;
-const AIRBURST_BOMB_DELAY_SECONDS = 0.5;
-const AIRBURST_BOMB_RADIUS = CELL_SIZE * 2;
 const FACTORY_ACTIVATIONS_PER_WAVE = 2;
 const FACTORY_SLOT_MULTIPLIERS = [1, 0.7, 0.5, 0.35, 0.25];
-const FACTORY_GOLD_MINE_COINS_PER_WAVE = 4;
-const FACTORY_GEM_MINE_CHANCE_PER_WAVE = 0.2;
 const CAMERA_EDGE_DRAG_MARGIN = 160;
 const ROAD_FLOW_IDLE_FRAME_INTERVAL_MS = 33;
 const TARGET_PRIORITIES = [
@@ -147,20 +143,6 @@ const RAIDER_SPAWN_INTERVALS = {
 };
 const MAX_TOWER_SHOTS_PER_UPDATE = 32;
 const RAIDER_BAR_REVEAL_MS = 2000;
-const RAYGUN_FREEZE_SPEED_MULTIPLIERS = {
-  common: 0.55,
-  uncommon: 0.5,
-  rare: 0.45,
-  epic: 0.4,
-  legendary: 0.25
-};
-const RAYGUN_FREEZE_DURATIONS = {
-  common: 5,
-  uncommon: 10,
-  rare: 15,
-  epic: 20,
-  legendary: 25
-};
 const WAVE_DEFINITIONS = Object.fromEntries([
   [1, [["walker", "common", 6]]],
   [2, [["walker", "common", 8]]],
@@ -1413,7 +1395,7 @@ export class GameFrameScreen {
 
     if (tower) {
       const center = this.#getTowerCenter(tower);
-      const stats = getEffectiveTowerStats(tower);
+      const stats = this.#getEffectiveTowerStats(tower);
       if (stats.rangeCells <= 0) return { rendered: 0, skipped: 1 };
       this.#drawRangeCircle(center.x, center.y, stats.rangeCells * CELL_SIZE, RARITY_COLORS[tower.rarity]);
       return { rendered: 1, skipped: 0 };
@@ -2266,7 +2248,7 @@ export class GameFrameScreen {
     `;
 
     if (tower.type === "factory") {
-      const stats = getEffectiveTowerStats(tower);
+      const stats = this.#getEffectiveTowerStats(tower);
       const creditAge = this.#getFactoryCreditAge(tower);
       const yieldPerWave = getFactoryResourceYield(tower, stats, this.#getFactorySlotMultiplier(tower), creditAge);
       factoryInfo.hidden = false;
@@ -2584,7 +2566,10 @@ export class GameFrameScreen {
 
   #getTowerUpgradeCost(tower, rarity) {
     const baseCost = TOWER_DEFINITIONS[tower.type].rarities[rarity].placementCost;
-    return Math.max(0, baseCost - (this.#hasAssignedResearch("factory", "assembly_line") ? 5 : 0));
+    const discount = this.#hasAssignedResearch("factory", "assembly_line")
+      ? getResearchEffectNumber("factory", "assembly_line", "upgradeDiscount", 5)
+      : 0;
+    return Math.max(0, baseCost - discount);
   }
 
   #hasAssignedResearch(towerId, researchId) {
@@ -2687,14 +2672,14 @@ export class GameFrameScreen {
   #grantFactoryMineRewards(wave) {
     const goldMines = this.#getAssignedResearchCount("factory", "gold_mine");
     if (goldMines > 0) {
-      const coins = goldMines * FACTORY_GOLD_MINE_COINS_PER_WAVE;
+      const coins = goldMines * getResearchEffectNumber("factory", "gold_mine", "coinsPerWave", 4);
       this.#coinYield += coins;
       this.#telemetry.recordReward({ kind: "coin_yield", amount: coins, id: "factory:gold_mine", wave });
     }
 
     const gemMines = this.#getAssignedResearchCount("factory", "gem_mine");
     for (let index = 0; index < gemMines; index++) {
-      if (Math.random() >= FACTORY_GEM_MINE_CHANCE_PER_WAVE) continue;
+      if (Math.random() >= getResearchEffectNumber("factory", "gem_mine", "gemChancePerWave", 0.2)) continue;
       const gemId = getRandomGem();
       this.#runGems.push(gemId);
       this.#telemetry.recordReward({ kind: "gem", amount: 1, id: `factory:gem_mine:${gemId}`, wave });
@@ -2754,7 +2739,7 @@ export class GameFrameScreen {
 
   #updateTowers(dt) {
     for (const tower of this.#towers) {
-      const stats = getEffectiveTowerStats(tower);
+      const stats = this.#getEffectiveTowerStats(tower);
       tower.cooldown -= dt;
 
       if (tower.type === "factory") {
@@ -2770,6 +2755,19 @@ export class GameFrameScreen {
             this.#disableRaiderCloak(target, revealDurationMs);
             this.#telemetry.recordRadarReveal(tower, target, revealDurationMs);
             this.#addRadarPulseEffect(tower, target, stats);
+            tower.cooldown = stats.attackInterval;
+          } else {
+            tower.cooldown = 0;
+          }
+        }
+        continue;
+      }
+
+      if (tower.type === "antiair" && tower.research === "railgun") {
+        if (tower.cooldown <= 0) {
+          const target = this.#findRailgunTarget(tower);
+          if (target) {
+            this.#fireRailgun(tower, target);
             tower.cooldown = stats.attackInterval;
           } else {
             tower.cooldown = 0;
@@ -2819,6 +2817,33 @@ export class GameFrameScreen {
     }
 
     this.#raiders = this.#raiders.filter((raider) => raider.alive);
+  }
+
+  #getEffectiveTowerStats(tower) {
+    const stats = getEffectiveTowerStats(tower);
+    if (!tower || tower.type === "factory") return stats;
+
+    for (const radar of this.#towers) {
+      if (radar === tower || radar.type !== "radar" || !radar.research) continue;
+      const radarStats = getEffectiveTowerStats(radar);
+      const radarCenter = this.#getTowerCenter(radar);
+      const towerCenter = this.#getTowerCenter(tower);
+      const dx = towerCenter.x - radarCenter.x;
+      const dy = towerCenter.y - radarCenter.y;
+      const range = (radarStats.rangeCells || 0) * CELL_SIZE;
+      if (dx * dx + dy * dy > range * range) continue;
+
+      const attackIntervalMultiplier = getResearchEffectNumber(radar, "auraAttackIntervalMultiplier", 1);
+      const rangeMultiplier = getResearchEffectNumber(radar, "auraRangeMultiplier", 1);
+      if (attackIntervalMultiplier !== 1 && Number.isFinite(stats.attackInterval)) {
+        stats.attackInterval *= attackIntervalMultiplier;
+      }
+      if (rangeMultiplier !== 1 && Number.isFinite(stats.rangeCells)) {
+        stats.rangeCells *= rangeMultiplier;
+      }
+    }
+
+    return stats;
   }
 
   #rebuildRaiderSpatialIndex() {
@@ -2971,7 +2996,7 @@ export class GameFrameScreen {
   #flushFactoriesForWaveEnd() {
     for (const tower of this.#towers) {
       if (tower.type !== "factory") continue;
-      const stats = getEffectiveTowerStats(tower);
+      const stats = this.#getEffectiveTowerStats(tower);
       while ((tower.factoryActivations || 0) < FACTORY_ACTIVATIONS_PER_WAVE) {
         this.#triggerFactory(tower, stats);
         this.#addFactoryBeamEffect(tower);
@@ -3091,6 +3116,23 @@ export class GameFrameScreen {
     });
   }
 
+  #fireRailgun(tower, target) {
+    const center = this.#getTowerCenter(tower);
+    const targetPosition = this.#getCachedRaiderPosition(target);
+    tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
+    this.#effects.push({
+      type: "projectile",
+      towerType: "antiair",
+      research: "railgun",
+      from: center,
+      to: targetPosition,
+      color: RARITY_COLORS[tower.rarity],
+      startedAt: performance.now(),
+      duration: getProjectileDuration(tower)
+    });
+    this.#destroyRaiderInstantly(target, tower);
+  }
+
   #findRadarTarget(tower) {
     const now = performance.now();
     const cloakedTarget = this.#findTowerTarget(tower, (raider) => (
@@ -3100,7 +3142,7 @@ export class GameFrameScreen {
   }
 
   #findTowerTarget(tower, filter = null) {
-    const stats = getEffectiveTowerStats(tower);
+    const stats = this.#getEffectiveTowerStats(tower);
     const center = this.#getTowerCenter(tower);
     const range = stats.rangeCells * CELL_SIZE;
     const rangeSq = range * range;
@@ -3166,14 +3208,15 @@ export class GameFrameScreen {
     if (!raider.alive || isRaiderFrozen(raider, this.#time)) return;
 
     raider.freezeSpeedMultiplier = getRaygunFreezeSpeedMultiplier(tower, raider);
-    raider.frozenUntil = this.#time + (RAYGUN_FREEZE_DURATIONS[tower.rarity] ?? RAYGUN_FREEZE_DURATIONS.common);
+    raider.frozenUntil = this.#time + getRaygunFreezeDuration(tower);
     raider.embrittled = tower.research === "embrittlement";
     this.#revealRaiderBars(raider);
   }
 
   #damageRaider(raider, damage, tower = null) {
     const brittle = isRaiderFrozen(raider, this.#time) && raider.embrittled;
-    let remaining = brittle ? damage * 2 : damage;
+    const rawDamage = brittle ? damage * getResearchEffectNumber("raygun", "embrittlement", "brittleDamageMultiplier", 2) : damage;
+    let remaining = rawDamage;
     const startingHealth = Math.max(0, raider.health);
     const startingShield = Math.max(0, raider.shield);
     this.#revealRaiderBars(raider);
@@ -3199,7 +3242,7 @@ export class GameFrameScreen {
     this.#telemetry.recordTowerDamage(tower, {
       healthDamage,
       shieldDamage,
-      rawDamage: brittle ? damage * 2 : damage,
+      rawDamage,
       killed
     });
 
@@ -3272,26 +3315,27 @@ export class GameFrameScreen {
   }
 
   #applyResearchShotEffects(tower, target, stats) {
-    if (tower.type === "minigun" && (tower.research === "high_caliber" || tower.research === "sniper")) {
-      const chance = tower.research === "sniper" ? 0.3 : 0.6;
-      if (Math.random() < chance) {
+    const penetrationChance = getResearchEffectNumber(tower, "penetrationChance", 0);
+    if (penetrationChance > 0) {
+      const radius = getResearchEffectNumber(tower, "penetrationRadiusCells", 2) * CELL_SIZE;
+      const damage = stats.damage * getResearchEffectNumber(tower, "penetrationDamageMultiplier", 1);
+      if (Math.random() < penetrationChance) {
         const targetPosition = this.#getCachedRaiderPosition(target);
-        this.#damageRaidersInRadius(targetPosition.x, targetPosition.y, PENETRATION_RADIUS, stats.damage, tower, target);
+        this.#damageRaidersInRadius(targetPosition.x, targetPosition.y, radius, damage, tower, target);
       }
     }
 
-    if (tower.type === "cannon" && tower.research === "airburst") {
+    if (getResearchEffectNumber(tower, "airburstEnabled", 0) > 0) {
       const targetPosition = this.#getCachedRaiderPosition(target);
-      this.#spawnAirburstBombs(tower, targetPosition, stats.damage * 0.25);
+      const damage = stats.damage * getResearchEffectNumber(tower, "airburstBombDamageMultiplier", 0.25);
+      this.#spawnAirburstBombs(tower, targetPosition, damage);
     }
   }
 
   #getTowerHitDamage(tower, baseDamage) {
-    if (tower.type === "minigun" && tower.research === "headshot" && Math.random() < 0.2) {
-      return baseDamage * 2;
-    }
-    if (tower.type === "cannon" && tower.research === "shellshocked" && Math.random() < 0.2) {
-      return baseDamage * 2;
+    const criticalChance = getResearchEffectNumber(tower, "criticalChance", 0);
+    if (criticalChance > 0 && Math.random() < criticalChance) {
+      return baseDamage * getResearchEffectNumber(tower, "criticalDamageMultiplier", 2);
     }
     return baseDamage;
   }
@@ -3311,26 +3355,25 @@ export class GameFrameScreen {
   }
 
   #spawnAirburstBombs(tower, targetPosition, damage) {
-    const offsets = [
-      { x: -CELL_SIZE * 0.5, y: -CELL_SIZE * 0.5 },
-      { x: CELL_SIZE * 0.5, y: -CELL_SIZE * 0.5 },
-      { x: -CELL_SIZE * 0.5, y: CELL_SIZE * 0.5 },
-      { x: CELL_SIZE * 0.5, y: CELL_SIZE * 0.5 }
-    ];
+    const bombCount = Math.max(1, Math.round(getResearchEffectNumber(tower, "airburstBombCount", 4)));
+    const radius = getResearchEffectNumber(tower, "airburstBombRadiusCells", 2) * CELL_SIZE;
+    const delaySeconds = getResearchEffectNumber(tower, "airburstBombDelaySeconds", 0.5);
 
-    for (const offset of offsets) {
+    for (let index = 0; index < bombCount; index++) {
+      const angle = (TAU / bombCount) * index + Math.PI / 4;
+      const offsetDistance = CELL_SIZE * 0.7;
       this.#effects.push({
         type: "airburst-bomb",
-        x: targetPosition.x + offset.x,
-        y: targetPosition.y + offset.y,
-        radius: AIRBURST_BOMB_RADIUS,
+        x: targetPosition.x + Math.cos(angle) * offsetDistance,
+        y: targetPosition.y + Math.sin(angle) * offsetDistance,
+        radius,
         damage,
         tower,
         color: "rgba(255, 188, 79, 0.96)",
         elapsed: 0,
-        delaySeconds: AIRBURST_BOMB_DELAY_SECONDS,
+        delaySeconds,
         startedAt: performance.now(),
-        duration: AIRBURST_BOMB_DELAY_SECONDS * 1000 + 420
+        duration: delaySeconds * 1000 + 420
       });
     }
   }
@@ -3405,7 +3448,7 @@ export class GameFrameScreen {
     this.#playerHealth = Math.max(0, this.#playerHealth - amount);
     const emergencyFactories = this.#towers.filter((tower) => tower.type === "factory" && tower.research === "emergency").length;
     if (emergencyFactories > 0) {
-      this.#resources += amount * emergencyFactories;
+      this.#resources += amount * emergencyFactories * getResearchEffectNumber("factory", "emergency", "damageRefundMultiplier", 1);
     }
 
     if (this.#playerHealth <= 0) {
@@ -3498,6 +3541,35 @@ export class GameFrameScreen {
     return this.#findTowerTarget(tower, (raider) => (
       this.#canReserveAntiAirMissile(raider, stats.damage)
     ));
+  }
+
+  #findRailgunTarget(tower) {
+    const threshold = getResearchEffectNumber(tower, "railgunProgressThreshold", 0.99);
+    const endProgress = Math.max(1, this.#road.cells.length - 1);
+    let best = null;
+    for (const raider of this.#raiders) {
+      if (!raider.alive) continue;
+      if ((raider.progress || 0) / endProgress < threshold) continue;
+      if (!best || raider.progress > best.progress) best = raider;
+    }
+    return best;
+  }
+
+  #destroyRaiderInstantly(raider, tower) {
+    const healthDamage = Math.max(0, Number(raider.health) || 0);
+    const shieldDamage = Math.max(0, Number(raider.shield) || 0);
+    this.#telemetry.recordTowerDamage(tower, {
+      healthDamage,
+      shieldDamage,
+      rawDamage: healthDamage + shieldDamage,
+      killed: true
+    });
+    this.#addRaiderExplosion(raider);
+    raider.health = 0;
+    raider.shield = 0;
+    raider.alive = false;
+    this.#resources += raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER;
+    this.#handleRaiderDeathSplit(raider);
   }
 
   #canReserveAntiAirMissile(raider, damage) {
@@ -4545,47 +4617,21 @@ function isRaiderFrozen(raider, time) {
 
 function getEffectiveTowerStats(tower) {
   const base = TOWER_DEFINITIONS[tower.type].rarities[tower.rarity];
-  const stats = { ...base };
-
-  if (tower.type === "minigun") {
-    if (tower.research === "gatling") {
-      stats.attackInterval *= 0.7;
-    } else if (tower.research === "high_caliber") {
-      stats.attackInterval *= 1.3;
-    } else if (tower.research === "sniper") {
-      stats.attackInterval *= 10;
-      stats.rangeCells *= 1.6;
-    }
-  } else if (tower.type === "cannon") {
-    if (tower.research === "airburst") {
-      stats.damage *= 0.5;
-    } else if (tower.research === "armor_piercing") {
-      stats.attackInterval *= 1.5;
-    } else if (tower.research === "bigger_guns") {
-      stats.attackInterval *= 10;
-      stats.damage *= 2.2;
-    }
-  } else if (tower.type === "raygun") {
-    if (tower.research === "absolute_stasis") {
-      stats.attackInterval *= 10;
-    }
-  }
-
-  return stats;
+  return applyResearchStatTuning(base, tower);
 }
 
 function getFactoryResourceYield(tower, stats, slotMultiplier, creditAge) {
   const baseYield = Math.ceil((creditAge / 4) * (stats.rarityMultiplier || 1) * slotMultiplier);
-  return tower.research === "overtime" ? Math.ceil(baseYield * 1.5) : baseYield;
+  return Math.ceil(baseYield * getResearchEffectNumber(tower, "factoryYieldMultiplier", 1));
 }
 
 function getShieldDamageMultiplier(tower) {
   if (!tower) return 1;
-  if (tower.type === "minigun" && tower.research === "armor_piercing") return 0.75;
-  if (tower.type === "cannon" && tower.research === "armor_piercing") return 3.6;
-  if (tower.type === "minigun") return 0.5;
-  if (tower.type === "cannon") return 2;
-  return 1;
+  return getResearchEffectNumber(
+    tower,
+    "shieldDamageMultiplier",
+    getCombatNumber(tower.type, "shieldDamageMultiplier", 1)
+  );
 }
 
 function getTowerProjectileColor(tower) {
@@ -4599,23 +4645,31 @@ function getTowerProjectileColor(tower) {
 }
 
 function getProjectileDuration(tower) {
-  if (tower.type === "cannon") return 120;
-  if (tower.type === "raygun") return 155;
-  if (tower.type === "minigun" && tower.research === "sniper") return 42;
-  return 75;
+  return getResearchEffectNumber(
+    tower,
+    "projectileDurationMs",
+    getCombatNumber(tower.type, "projectileDurationMs", 75)
+  );
 }
 
 function getMissileDuration(tower, stats) {
   const baseDuration = stats.missileDuration || 5;
-  return tower.research === "lock_on_array" ? baseDuration / 1.3 : baseDuration;
+  return baseDuration / getResearchEffectNumber(tower, "missileSpeedMultiplier", 1);
+}
+
+function getRaygunFreezeDuration(tower) {
+  return getCombatRarityNumber("raygun", "freezeDurations", tower.rarity, 5);
 }
 
 function getRaygunFreezeSpeedMultiplier(tower, raider) {
-  if (tower.research === "absolute_stasis") return 0;
+  const override = getResearchEffectNumber(tower, "freezeSpeedMultiplierOverride", null);
+  if (override !== null) return override;
 
-  const baseMultiplier = RAYGUN_FREEZE_SPEED_MULTIPLIERS[tower.rarity] ?? RAYGUN_FREEZE_SPEED_MULTIPLIERS.common;
+  const baseMultiplier = getCombatRarityNumber("raygun", "freezeSpeedMultipliers", tower.rarity, 0.55);
   let slowBonus = 0;
-  if (tower.research === "cryo") slowBonus += 0.3;
-  if (tower.research === "tracer" && (raider.type === "fastcar" || raider.type === "jet")) slowBonus += 0.6;
+  slowBonus += getResearchEffectNumber(tower, "slowBonus", 0);
+  if (raider.type === "fastcar" || raider.type === "jet") {
+    slowBonus += getResearchEffectNumber(tower, "fastEnemySlowBonus", 0);
+  }
   return Math.max(0, baseMultiplier * (1 - slowBonus));
 }

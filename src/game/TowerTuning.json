@@ -1,0 +1,486 @@
+{
+  "schemaVersion": 1,
+  "towers": {
+    "factory": {
+      "rarities": {
+        "common": {
+          "placementCost": 20,
+          "rangeCells": 0,
+          "rarityMultiplier": 1,
+          "attackInterval": 30
+        },
+        "uncommon": {
+          "placementCost": 40,
+          "rangeCells": 0,
+          "rarityMultiplier": 1.5,
+          "attackInterval": 30
+        },
+        "rare": {
+          "placementCost": 80,
+          "rangeCells": 0,
+          "rarityMultiplier": 2,
+          "attackInterval": 30
+        },
+        "epic": {
+          "placementCost": 160,
+          "rangeCells": 0,
+          "rarityMultiplier": 2.5,
+          "attackInterval": 30
+        },
+        "legendary": {
+          "placementCost": 320,
+          "rangeCells": 0,
+          "rarityMultiplier": 3,
+          "attackInterval": 30
+        }
+      },
+      "combat": {},
+      "research": {
+        "overtime": {
+          "effects": {
+            "factoryYieldMultiplier": 1.1
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "emergency": {
+          "effects": {
+            "damageRefundMultiplier": 2
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "assembly_line": {
+          "effects": {
+            "upgradeDiscount": 1
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "gold_mine": {
+          "effects": {
+            "coinsPerWave": 5
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "gem_mine": {
+          "effects": {
+            "gemChancePerWave": 0.2
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        }
+      }
+    },
+    "minigun": {
+      "rarities": {
+        "common": {
+          "placementCost": 10,
+          "rangeCells": 3,
+          "damage": 10,
+          "attackInterval": 0.1
+        },
+        "uncommon": {
+          "placementCost": 20,
+          "rangeCells": 4,
+          "damage": 15,
+          "attackInterval": 0.1
+        },
+        "rare": {
+          "placementCost": 40,
+          "rangeCells": 5,
+          "damage": 20,
+          "attackInterval": 0.1
+        },
+        "epic": {
+          "placementCost": 80,
+          "rangeCells": 6,
+          "damage": 25,
+          "attackInterval": 0.07
+        },
+        "legendary": {
+          "placementCost": 160,
+          "rangeCells": 7,
+          "damage": 30,
+          "attackInterval": 0.05
+        }
+      },
+      "combat": {
+        "shieldDamageMultiplier": 0.3,
+        "projectileDurationMs": 100
+      },
+      "research": {
+        "gatling": {
+          "statMultipliers": {
+            "attackInterval": 0.7
+          },
+          "effects": {
+            "muzzleDurationMs": 40
+          },
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "high_caliber": {
+          "statMultipliers": {
+            "attackInterval": 1.3
+          },
+          "effects": {
+            "penetrationChance": 0.6,
+            "penetrationRadiusCells": 1,
+            "penetrationDamageMultiplier": 1
+          },
+          "statAdd": {
+            "shieldDamageMultiplier": 1.3
+          },
+          "statOverrides": {}
+        },
+        "sniper": {
+          "statMultipliers": {
+            "attackInterval": 10,
+            "rangeCells": 1.6
+          },
+          "effects": {
+            "penetrationChance": 1,
+            "penetrationRadiusCells": 2,
+            "penetrationDamageMultiplier": 10,
+            "projectileDurationMs": 300
+          },
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "armor_piercing": {
+          "effects": {
+            "shieldDamageMultiplier": 1.2
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "headshot": {
+          "effects": {
+            "criticalChance": 0.2,
+            "criticalDamageMultiplier": 2
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "night_vision": {
+          "effects": {},
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        }
+      }
+    },
+    "cannon": {
+      "rarities": {
+        "common": {
+          "placementCost": 20,
+          "rangeCells": 5,
+          "damage": 100,
+          "attackInterval": 3
+        },
+        "uncommon": {
+          "placementCost": 40,
+          "rangeCells": 7,
+          "damage": 200,
+          "attackInterval": 2.8
+        },
+        "rare": {
+          "placementCost": 80,
+          "rangeCells": 9,
+          "damage": 400,
+          "attackInterval": 2.6
+        },
+        "epic": {
+          "placementCost": 160,
+          "rangeCells": 11,
+          "damage": 800,
+          "attackInterval": 2.4
+        },
+        "legendary": {
+          "placementCost": 320,
+          "rangeCells": 13,
+          "damage": 2000,
+          "attackInterval": 2.2
+        }
+      },
+      "combat": {
+        "shieldDamageMultiplier": 1.5,
+        "projectileDurationMs": 120
+      },
+      "research": {
+        "airburst": {
+          "statMultipliers": {
+            "damage": 0.3
+          },
+          "effects": {
+            "airburstEnabled": 1,
+            "airburstBombCount": 4,
+            "airburstBombDamageMultiplier": 0.1,
+            "airburstBombRadiusCells": 1.5,
+            "airburstBombDelaySeconds": 0.5
+          },
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "armor_piercing": {
+          "statMultipliers": {
+            "attackInterval": 1.5
+          },
+          "effects": {
+            "shieldDamageMultiplier": 2
+          },
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "shellshocked": {
+          "effects": {
+            "criticalChance": 0.2,
+            "criticalDamageMultiplier": 2
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "bigger_guns": {
+          "statMultipliers": {
+            "attackInterval": 10,
+            "damage": 2.2
+          },
+          "statAdd": {},
+          "statOverrides": {},
+          "effects": {}
+        },
+        "snare": {
+          "effects": {},
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        }
+      }
+    },
+    "raygun": {
+      "rarities": {
+        "common": {
+          "placementCost": 10,
+          "rangeCells": 3,
+          "damage": 10,
+          "attackInterval": 2
+        },
+        "uncommon": {
+          "placementCost": 20,
+          "rangeCells": 4,
+          "damage": 20,
+          "attackInterval": 1.8
+        },
+        "rare": {
+          "placementCost": 40,
+          "rangeCells": 5,
+          "damage": 30,
+          "attackInterval": 1.6
+        },
+        "epic": {
+          "placementCost": 80,
+          "rangeCells": 6,
+          "damage": 40,
+          "attackInterval": 1.4
+        },
+        "legendary": {
+          "placementCost": 160,
+          "rangeCells": 8,
+          "damage": 50,
+          "attackInterval": 1
+        }
+      },
+      "combat": {
+        "shieldDamageMultiplier": 1,
+        "projectileDurationMs": 300,
+        "freezeSpeedMultipliers": {
+          "common": 0.55,
+          "uncommon": 0.5,
+          "rare": 0.45,
+          "epic": 0.4,
+          "legendary": 0.25
+        },
+        "freezeDurations": {
+          "common": 5,
+          "uncommon": 10,
+          "rare": 15,
+          "epic": 20,
+          "legendary": 25
+        }
+      },
+      "research": {
+        "tracer": {
+          "effects": {
+            "fastEnemySlowBonus": 0.6
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "cryo": {
+          "effects": {
+            "slowBonus": 0.3
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "embrittlement": {
+          "effects": {
+            "brittleDamageMultiplier": 2
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "absolute_stasis": {
+          "statMultipliers": {
+            "attackInterval": 10
+          },
+          "effects": {
+            "freezeSpeedMultiplierOverride": 0
+          },
+          "statAdd": {},
+          "statOverrides": {}
+        }
+      }
+    },
+    "radar": {
+      "rarities": {
+        "common": {
+          "placementCost": 30,
+          "rangeCells": 7,
+          "damage": 0,
+          "attackInterval": 0.5,
+          "revealDuration": 5
+        },
+        "uncommon": {
+          "placementCost": 60,
+          "rangeCells": 9,
+          "damage": 0,
+          "attackInterval": 0.4,
+          "revealDuration": 6
+        },
+        "rare": {
+          "placementCost": 120,
+          "rangeCells": 12,
+          "damage": 0,
+          "attackInterval": 0.3,
+          "revealDuration": 7
+        },
+        "epic": {
+          "placementCost": 240,
+          "rangeCells": 16,
+          "damage": 0,
+          "attackInterval": 0.2,
+          "revealDuration": 8
+        },
+        "legendary": {
+          "placementCost": 480,
+          "rangeCells": 21,
+          "damage": 0,
+          "attackInterval": 0.1,
+          "revealDuration": 10
+        }
+      },
+      "combat": {},
+      "research": {
+        "call_to_action": {
+          "effects": {
+            "auraAttackIntervalMultiplier": 0.8
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "marksmanagement": {
+          "effects": {
+            "auraRangeMultiplier": 1.5
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        }
+      }
+    },
+    "antiair": {
+      "rarities": {
+        "common": {
+          "placementCost": 30,
+          "rangeCells": 15,
+          "damage": 100,
+          "attackInterval": 30.0,
+          "missileDuration": 5.0
+        },
+        "uncommon": {
+          "placementCost": 60,
+          "rangeCells": 25,
+          "damage": 150,
+          "attackInterval": 25.0,
+          "missileDuration": 5.0
+        },
+        "rare": {
+          "placementCost": 120,
+          "rangeCells": 35,
+          "damage": 200,
+          "attackInterval": 20.0,
+          "missileDuration": 5.0
+        },
+        "epic": {
+          "placementCost": 240,
+          "rangeCells": 45,
+          "damage": 250,
+          "attackInterval": 15.0,
+          "missileDuration": 5.0
+        },
+        "legendary": {
+          "placementCost": 480,
+          "rangeCells": 55,
+          "damage": 300,
+          "attackInterval": 10.0,
+          "missileDuration": 5.0
+        }
+      },
+      "combat": {},
+      "research": {
+        "lock_on_array": {
+          "effects": {
+            "missileSpeedMultiplier": 1.5
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "stinger": {
+          "statMultipliers": {
+            "attackInterval": 1.5,
+            "damage": 2
+          },
+          "effects": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "railgun": {
+          "statOverrides": {
+            "attackInterval": 100
+          },
+          "effects": {
+            "railgunProgressThreshold": 0.99
+          },
+          "statMultipliers": {},
+          "statAdd": {}
+        }
+      }
+    }
+  }
+}

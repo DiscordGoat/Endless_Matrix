@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1800" viewBox="0 0 1400 1800" role="img" aria-labelledby="title desc">
+  <title id="title">Endless Matrix Balance Telemetry Infographic</title>
+  <desc id="desc">Tower and research balance report from telemetry. Value 100 is healthy, lower scores are weak, higher scores are too strong.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#041018"/>
+      <stop offset="0.52" stop-color="#070b13"/>
+      <stop offset="1" stop-color="#120817"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101822" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#080c12" stop-opacity="0.96"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      .bg-grid { stroke: rgba(147, 247, 210, 0.07); stroke-width: 1; }
+      .panel { fill: url(#panel); stroke: rgba(221, 232, 255, 0.28); stroke-width: 1.5; }
+      .panel-strong { stroke: rgba(147, 247, 210, 0.5); }
+      .title { fill: #f6f9ff; font: 900 52px Inter, Arial, sans-serif; letter-spacing: 1px; }
+      .subtitle { fill: rgba(246, 249, 255, 0.72); font: 700 21px Inter, Arial, sans-serif; }
+      .section-title { fill: #f6f9ff; font: 900 27px Inter, Arial, sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+      .label { fill: rgba(246, 249, 255, 0.9); font: 800 18px Inter, Arial, sans-serif; }
+      .small { fill: rgba(194, 207, 230, 0.78); font: 700 15px Inter, Arial, sans-serif; }
+      .tiny { fill: rgba(194, 207, 230, 0.68); font: 700 13px Inter, Arial, sans-serif; }
+      .score { fill: #f6f9ff; font: 900 18px Inter, Arial, sans-serif; }
+      .axis { stroke: rgba(246, 249, 255, 0.18); stroke-width: 1; }
+      .healthy-line { stroke: #93f7d2; stroke-width: 2.5; stroke-dasharray: 8 8; }
+      .weak { fill: #6ca8ff; }
+      .healthy { fill: #93f7d2; }
+      .strong { fill: #ffcf4f; }
+      .broken { fill: #ff6574; }
+      .support { fill: #ba8cff; }
+      .legend-text { fill: rgba(246, 249, 255, 0.8); font: 800 15px Inter, Arial, sans-serif; }
+      .callout { fill: rgba(255, 255, 255, 0.04); stroke: rgba(255, 255, 255, 0.16); stroke-width: 1; }
+      .callout-strong { fill: rgba(255, 101, 116, 0.08); stroke: rgba(255, 101, 116, 0.42); }
+      .callout-good { fill: rgba(147, 247, 210, 0.07); stroke: rgba(147, 247, 210, 0.38); }
+    </style>
+  </defs>
+
+  <rect width="1400" height="1800" fill="url(#bg)"/>
+  <g opacity="0.9">
+    <path class="bg-grid" d="M0 80H1400 M0 160H1400 M0 240H1400 M0 320H1400 M0 400H1400 M0 480H1400 M0 560H1400 M0 640H1400 M0 720H1400 M0 800H1400 M0 880H1400 M0 960H1400 M0 1040H1400 M0 1120H1400 M0 1200H1400 M0 1280H1400 M0 1360H1400 M0 1440H1400 M0 1520H1400 M0 1600H1400 M0 1680H1400"/>
+    <path class="bg-grid" d="M80 0V1800 M160 0V1800 M240 0V1800 M320 0V1800 M400 0V1800 M480 0V1800 M560 0V1800 M640 0V1800 M720 0V1800 M800 0V1800 M880 0V1800 M960 0V1800 M1040 0V1800 M1120 0V1800 M1200 0V1800 M1280 0V1800"/>
+  </g>
+
+  <g transform="translate(70 60)">
+    <text class="title" x="0" y="0" dominant-baseline="hanging">Balance Telemetry Report</text>
+    <text class="subtitle" x="0" y="68">Value score: 100 is healthy. Above 100 is too powerful. Below 100 is too weak.</text>
+    <text class="subtitle" x="0" y="102">Run source: Level 12, 60 waves, victory, iPhone telemetry.</text>
+  </g>
+
+  <g transform="translate(70 205)">
+    <rect class="panel panel-strong" width="1260" height="150" rx="8"/>
+    <line class="healthy-line" x1="516" y1="28" x2="516" y2="122"/>
+    <text class="section-title" x="28" y="34">Reading The Scale</text>
+    <g transform="translate(28 76)">
+      <rect class="weak" x="0" y="0" width="135" height="22" rx="4"/>
+      <text class="legend-text" x="150" y="17">Weak: under 80</text>
+      <rect class="healthy" x="335" y="0" width="135" height="22" rx="4"/>
+      <text class="legend-text" x="485" y="17">Healthy: 80-125</text>
+      <rect class="strong" x="690" y="0" width="135" height="22" rx="4"/>
+      <text class="legend-text" x="840" y="17">Too strong: 126-300</text>
+      <rect class="broken" x="1035" y="0" width="135" height="22" rx="4"/>
+      <text class="legend-text" x="1185" y="17">Broken: 300+</text>
+    </g>
+    <text class="tiny" x="500" y="132">Healthy baseline</text>
+  </g>
+
+  <g transform="translate(70 395)">
+    <rect class="panel" width="1260" height="425" rx="8"/>
+    <text class="section-title" x="28" y="34">Base Tower Health</text>
+    <text class="small" x="28" y="64">Base towers should be fair for their resource cost before research is assigned.</text>
+    <line class="healthy-line" x1="492" y1="92" x2="492" y2="390"/>
+    <text class="tiny" x="468" y="408">100</text>
+
+    <g transform="translate(28 105)">
+      <text class="label" x="0" y="20">Factory Epic</text>
+      <rect class="strong" x="250" y="4" width="356" height="22" rx="4"/>
+      <text class="score" x="620" y="22">139.8</text>
+
+      <text class="label" x="0" y="64">Cannon Epic</text>
+      <rect class="weak" x="250" y="48" width="64" height="22" rx="4"/>
+      <text class="score" x="328" y="66">25.0</text>
+
+      <text class="label" x="0" y="108">Minigun Legendary</text>
+      <rect class="weak" x="250" y="92" width="33" height="22" rx="4"/>
+      <text class="score" x="298" y="110">13.1</text>
+
+      <text class="label" x="0" y="152">Raygun Legendary</text>
+      <rect class="weak" x="250" y="136" width="25" height="22" rx="4"/>
+      <text class="score" x="290" y="154">9.8</text>
+
+      <text class="label" x="0" y="196">Anti-Air Epic</text>
+      <rect class="weak" x="250" y="180" width="5" height="22" rx="4"/>
+      <text class="score" x="270" y="198">1.6</text>
+
+      <text class="label" x="0" y="240">Radar Rare</text>
+      <rect class="support" x="250" y="224" width="95" height="22" rx="4"/>
+      <text class="score" x="360" y="242">support raw only</text>
+    </g>
+
+    <g transform="translate(735 103)">
+      <rect class="callout" width="490" height="258" rx="8"/>
+      <text class="label" x="22" y="34">Base tower read</text>
+      <text class="small" x="22" y="72">Factory is already high before research.</text>
+      <text class="small" x="22" y="104">Raygun and Anti-Air are clearly too weak.</text>
+      <text class="small" x="22" y="136">Cannon and Minigun averages are distorted by</text>
+      <text class="small" x="22" y="160">late filler placement, but still need retesting.</text>
+      <text class="small" x="22" y="198">Radar needs a support scoring model before it</text>
+      <text class="small" x="22" y="222">can be judged against damage towers.</text>
+    </g>
+  </g>
+
+  <g transform="translate(70 855)">
+    <rect class="panel" width="1260" height="405" rx="8"/>
+    <text class="section-title" x="28" y="34">Research Perk Health</text>
+    <text class="small" x="28" y="64">Research should land near 100 without making the base tower mandatory or obsolete.</text>
+    <line class="healthy-line" x1="492" y1="92" x2="492" y2="372"/>
+    <text class="tiny" x="468" y="390">100</text>
+
+    <g transform="translate(28 101)">
+      <text class="label" x="0" y="20">Cannon Armor Piercing</text>
+      <rect class="broken" x="250" y="4" width="930" height="22" rx="4"/>
+      <text class="score" x="1195" y="22">1262.8</text>
+
+      <text class="label" x="0" y="56">Cannon Airburst</text>
+      <rect class="broken" x="250" y="40" width="780" height="22" rx="4"/>
+      <text class="score" x="1045" y="58">665.0</text>
+
+      <text class="label" x="0" y="92">Factory Overtime</text>
+      <rect class="broken" x="250" y="76" width="735" height="22" rx="4"/>
+      <text class="score" x="1000" y="94">630.1</text>
+
+      <text class="label" x="0" y="128">Factory Assembly Line</text>
+      <rect class="strong" x="250" y="112" width="681" height="22" rx="4"/>
+      <text class="score" x="946" y="130">283.8</text>
+
+      <text class="label" x="0" y="164">Minigun High Caliber</text>
+      <rect class="strong" x="250" y="148" width="665" height="22" rx="4"/>
+      <text class="score" x="930" y="166">276.9</text>
+
+      <text class="label" x="0" y="200">Factory Emergency</text>
+      <rect class="strong" x="250" y="184" width="488" height="22" rx="4"/>
+      <text class="score" x="753" y="202">203.4</text>
+
+      <text class="label" x="0" y="236">Minigun Gatling</text>
+      <rect class="strong" x="250" y="220" width="488" height="22" rx="4"/>
+      <text class="score" x="753" y="238">203.2</text>
+
+      <text class="label" x="0" y="272">Minigun Armor Piercing</text>
+      <rect class="strong" x="250" y="256" width="444" height="22" rx="4"/>
+      <text class="score" x="709" y="274">185.1</text>
+    </g>
+  </g>
+
+  <g transform="translate(70 1295)">
+    <rect class="panel" width="1260" height="275" rx="8"/>
+    <text class="section-title" x="28" y="34">Closest To Healthy</text>
+    <line class="healthy-line" x1="492" y1="72" x2="492" y2="230"/>
+    <text class="tiny" x="468" y="248">100</text>
+
+    <g transform="translate(28 83)">
+      <text class="label" x="0" y="20">Minigun Night Vision</text>
+      <rect class="healthy" x="250" y="4" width="288" height="22" rx="4"/>
+      <text class="score" x="553" y="22">120.1</text>
+
+      <text class="label" x="0" y="64">Raygun Embrittlement</text>
+      <rect class="healthy" x="250" y="48" width="222" height="22" rx="4"/>
+      <text class="score" x="487" y="66">92.4</text>
+
+      <text class="label" x="0" y="108">Minigun Sniper</text>
+      <rect class="weak" x="250" y="92" width="62" height="22" rx="4"/>
+      <text class="score" x="327" y="110">25.8</text>
+
+      <text class="label" x="0" y="152">Anti-Air Epic</text>
+      <rect class="weak" x="250" y="136" width="5" height="22" rx="4"/>
+      <text class="score" x="270" y="154">1.6</text>
+    </g>
+
+    <g transform="translate(735 67)">
+      <rect class="callout callout-good" width="490" height="160" rx="8"/>
+      <text class="label" x="22" y="34">Keep these as anchors</text>
+      <text class="small" x="22" y="72">Embrittlement is the cleanest research target.</text>
+      <text class="small" x="22" y="104">Night Vision is healthy-high, but acceptable.</text>
+      <text class="small" x="22" y="136">Use them as practical reference points.</text>
+    </g>
+  </g>
+
+  <g transform="translate(70 1605)">
+    <rect class="panel" width="1260" height="135" rx="8"/>
+    <text class="section-title" x="28" y="34">Priority Tuning Queue</text>
+    <text class="small" x="28" y="75">1. Hard nerf Cannon Armor Piercing and Airburst.  2. Nerf Factory Overtime.  3. Nerf Minigun High Caliber.</text>
+    <text class="small" x="28" y="105">4. Buff or redesign Minigun Sniper.  5. Buff base Raygun.  6. Retest Anti-Air after missile reservation fix.</text>
+  </g>
+</svg>
