@@ -2308,6 +2308,35 @@ h1 {
   background: transparent;
 }
 
+.tower-action-button.upgrade-ready-glow {
+  animation: tower-upgrade-ready-glow 5s ease-out both;
+}
+
+@keyframes tower-upgrade-ready-glow {
+  0% {
+    border-color: var(--upgrade-ready-color);
+    box-shadow:
+      0 0 0 1px var(--upgrade-ready-color) inset,
+      0 0 28px var(--upgrade-ready-color),
+      0 0 64px var(--upgrade-ready-color);
+    filter: brightness(1.28);
+  }
+
+  18% {
+    border-color: var(--upgrade-ready-color);
+    box-shadow:
+      0 0 0 1px var(--upgrade-ready-color) inset,
+      0 0 24px var(--upgrade-ready-color),
+      0 0 52px var(--upgrade-ready-color);
+    filter: brightness(1.2);
+  }
+
+  100% {
+    box-shadow: none;
+    filter: brightness(1);
+  }
+}
+
 .tower-research-button {
   min-height: 28px;
   padding: 4px 6px;

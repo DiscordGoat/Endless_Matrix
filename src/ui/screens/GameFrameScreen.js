@@ -15,7 +15,7 @@ const CELL_SIZE = 32;
 const TARGET_BUCKET_SIZE = CELL_SIZE * 4;
 const MONOLITH_LIFT = CELL_SIZE * 0.9;
 const MONOLITH_INSET = CELL_SIZE * 0.18;
-const MIN_ZOOM = 0.38;
+const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2.4;
 const TAU = Math.PI * 2;
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
@@ -1579,6 +1579,8 @@ export class GameFrameScreen {
         this.#drawRadarPulseEffect(effect, progress);
       } else if (effect.type === "tower-upgrade-reveal") {
         this.#drawTowerUpgradeRevealEffect(effect, progress);
+      } else if (effect.type === "tower-research-bloom") {
+        this.#drawTowerResearchBloomEffect(effect, progress);
       }
 
       rendered++;
@@ -1596,6 +1598,7 @@ export class GameFrameScreen {
 
   #getEffectTelemetrySection(effect) {
     if (effect.type === "tower-upgrade-reveal") return `effect:upgrade:${effect.rarity || "unknown"}`;
+    if (effect.type === "tower-research-bloom") return "effect:tower-research-bloom";
     if (effect.type === "projectile") return `effect:projectile:${effect.towerType || "tower"}`;
     return `effect:${effect.type}`;
   }
@@ -1720,6 +1723,37 @@ export class GameFrameScreen {
     } else {
       this.#drawUpgradeTornadoEffect(effect, progress);
     }
+  }
+
+  #drawTowerResearchBloomEffect(effect, progress) {
+    const pulse = Math.sin(progress * Math.PI);
+    const fade = 1 - progress;
+    const radius = effect.size * (0.48 + progress * 0.42);
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.strokeStyle = withAlpha(effect.color, fade * 0.95);
+    this.#ctx.fillStyle = withAlpha(effect.color, pulse * 0.16);
+    this.#ctx.lineWidth = 2 + pulse * 3;
+    this.#ctx.shadowColor = effect.color;
+    this.#ctx.shadowBlur = 18 + pulse * 24;
+    this.#ctx.beginPath();
+    this.#ctx.arc(effect.x, effect.y, radius, 0, TAU);
+    this.#ctx.fill();
+    this.#ctx.stroke();
+
+    this.#ctx.strokeStyle = withAlpha(effect.color, fade * 0.55);
+    this.#ctx.lineWidth = 1.5;
+    for (let index = 0; index < 4; index++) {
+      const angle = index * (TAU / 4) + progress * TAU * 0.18;
+      const inner = effect.size * 0.18;
+      const outer = effect.size * (0.56 + pulse * 0.16);
+      this.#ctx.beginPath();
+      this.#ctx.moveTo(effect.x + Math.cos(angle) * inner, effect.y + Math.sin(angle) * inner);
+      this.#ctx.lineTo(effect.x + Math.cos(angle) * outer, effect.y + Math.sin(angle) * outer);
+      this.#ctx.stroke();
+    }
+    this.#ctx.restore();
   }
 
   #drawUpgradeSmokeEffect(effect, progress) {
@@ -2193,7 +2227,7 @@ export class GameFrameScreen {
       if (!definition || !upgradeButton || !nextRarity) return;
       const unlocked = this.#saveService.isTowerUnlocked(tower.type, nextRarity);
       const cost = this.#getTowerUpgradeCost(tower, nextRarity);
-      upgradeButton.disabled = !unlocked || this.#resources < cost;
+      this.#setTowerUpgradeButtonReady(upgradeButton, unlocked && this.#resources >= cost, nextRarity);
     }
   }
 
@@ -2245,6 +2279,8 @@ export class GameFrameScreen {
       upgradeButton.setAttribute("aria-label", "Tower is already at max tier");
       upgradeButton.title = "Max tier";
       upgradeButton.dataset.upgradeRarity = "";
+      upgradeButton.dataset.upgradeReady = "false";
+      upgradeButton.style.removeProperty("--upgrade-ready-color");
       upgradeMeta.textContent = "Max";
       upgradeButton.disabled = true;
     } else {
@@ -2255,7 +2291,7 @@ export class GameFrameScreen {
       upgradeButton.title = unlocked ? `Upgrade - ${cost}R` : `${nextLabel} locked`;
       upgradeButton.dataset.upgradeRarity = nextRarity;
       upgradeMeta.textContent = `${cost}R`;
-      upgradeButton.disabled = !unlocked || this.#resources < cost;
+      this.#setTowerUpgradeButtonReady(upgradeButton, unlocked && this.#resources >= cost, nextRarity, { initialize: true });
     }
 
     placementPanel.style.display = "none";
@@ -2279,6 +2315,34 @@ export class GameFrameScreen {
       popup.classList.add("active");
       this.#towerPopupOpenTimer = 0;
     }, TOWER_POPUP_OPEN_DELAY_MS);
+  }
+
+  #setTowerUpgradeButtonReady(button, ready, rarity, options = {}) {
+    const hadState = button.dataset.upgradeReady === "true" || button.dataset.upgradeReady === "false";
+    const wasReady = button.dataset.upgradeReady === "true";
+    const nextReady = Boolean(ready);
+    const color = rarity ? RARITY_COLORS[rarity] : "";
+
+    button.disabled = !nextReady;
+    button.dataset.upgradeReady = String(nextReady);
+    if (color) {
+      button.style.setProperty("--upgrade-ready-color", color);
+    } else {
+      button.style.removeProperty("--upgrade-ready-color");
+    }
+
+    if (!options.initialize && hadState && !wasReady && nextReady) {
+      this.#playUpgradeReadyGlow(button);
+    }
+  }
+
+  #playUpgradeReadyGlow(button) {
+    button.classList.remove("upgrade-ready-glow");
+    void button.offsetWidth;
+    button.classList.add("upgrade-ready-glow");
+    window.setTimeout(() => {
+      if (button.isConnected) button.classList.remove("upgrade-ready-glow");
+    }, 5000);
   }
 
   #cancelTowerPopupOpen() {
@@ -2409,6 +2473,7 @@ export class GameFrameScreen {
 
     if ((tower.research || "") !== previousResearch) {
       this.#telemetry.recordResearchAssigned(tower, previousResearch);
+      this.#addTowerResearchBloomEffect(tower);
     }
     this.#refreshTowerResearchControls(tower, { open: false });
     this.#saveActiveRun();
@@ -2962,6 +3027,21 @@ export class GameFrameScreen {
       y: center.y,
       size,
       color: RARITY_COLORS[tower.rarity],
+      startedAt: performance.now(),
+      duration: 1000
+    });
+  }
+
+  #addTowerResearchBloomEffect(tower) {
+    const center = this.#getTowerCenter(tower);
+    const rect = this.#getTowerFootprintRect(tower);
+    const size = Math.max(rect.width, rect.height);
+    this.#effects.push({
+      type: "tower-research-bloom",
+      x: center.x,
+      y: center.y,
+      size,
+      color: RARITY_COLORS[tower.rarity] || "rgba(68, 255, 239, 0.95)",
       startedAt: performance.now(),
       duration: 1000
     });

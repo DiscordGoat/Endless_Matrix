@@ -357,10 +357,9 @@ export const RAIDER_TYPES = {
   nestor: {
     id: "nestor",
     label: "Nestor",
-    frames: ["Nestor"],
+    frames: ["heavy_transport"],
     frameDuration: 1,
     assetScale: 1.9,
-    usesRarityAssets: false,
     splitOnDeath: {
       type: "fastcar",
       count: 3
@@ -376,10 +375,9 @@ export const RAIDER_TYPES = {
   serpent: {
     id: "serpent",
     label: "Serpent",
-    frames: ["Serpent"],
-    frameDuration: 1,
+    frames: ["walker_frame1", "walker_frame2"],
+    frameDuration: 0.16,
     assetScale: 1.75,
-    usesRarityAssets: false,
     damageTakenCap: 1,
     rarities: {
       common: createSerpentStats("common", "Common", 100),
@@ -392,10 +390,9 @@ export const RAIDER_TYPES = {
   wraith: {
     id: "wraith",
     label: "Wraith",
-    frames: ["Wraith"],
+    frames: ["vertex"],
     frameDuration: 1,
     assetScale: 1.55,
-    usesRarityAssets: false,
     cloaked: true,
     rarities: {
       common: createWraithStats("common", "Common", 100),
