@@ -218,6 +218,26 @@ export const RESEARCH_DEFINITIONS = {
         summary: "-5 Upgrade Cost",
         detail: "Tower upgrades cost 5 fewer resources. Does not stack.",
         position: { q: 1, r: 0 }
+      },
+      gold_mine: {
+        id: "gold_mine",
+        towerId: "factory",
+        label: "Gold Mine",
+        shortLabel: "Gold",
+        cost: 1,
+        summary: "+4 Coins per Wave",
+        detail: "Mines 4 coins per wave into a hidden coin yield cache.",
+        position: { q: 0, r: 1 }
+      },
+      gem_mine: {
+        id: "gem_mine",
+        towerId: "factory",
+        label: "Gem Mine",
+        shortLabel: "Gem",
+        cost: 1,
+        summary: "20% Gem per Wave",
+        detail: "Each wave has a 20% chance to mine a random gem.",
+        position: { q: 1, r: -1 }
       }
     }
   }

@@ -5,6 +5,7 @@ import { createRaider, RAIDER_TYPES } from "../../game/RaiderDefinitions.js";
 import { getRandomGem } from "../../game/GemDefinitions.js";
 import { BASE_COIN_DROP_CHANCE, BASE_RAIDER_RESOURCE_MULTIPLIER, getCoinYieldMultiplier, getCrateDropChance, getGemDropChance, getStartingResourceBonus } from "../../game/PerkDefinitions.js";
 import { getNextRarity, RARITIES, RARITY_LABELS, TOWER_DEFINITIONS, RARITY_COLORS } from "../../game/TowerDefinitions.js";
+import { RunTelemetry, copyLatestTelemetryRun, downloadLatestTelemetryRun, enableTelemetry, isTelemetryEnabled } from "../../game/TelemetryService.js";
 import { getResearchKey, getResearchNode, getTowerResearchNodes } from "../../game/ResearchDefinitions.js";
 import { getCachedImage } from "../AssetCache.js";
 import { queueCoinReward, queueGemReward, queueTextReward } from "../RewardPopup.js";
@@ -62,12 +63,16 @@ const AIRBURST_BOMB_DELAY_SECONDS = 0.5;
 const AIRBURST_BOMB_RADIUS = CELL_SIZE * 2;
 const FACTORY_ACTIVATIONS_PER_WAVE = 2;
 const FACTORY_SLOT_MULTIPLIERS = [1, 0.7, 0.5, 0.35, 0.25];
+const FACTORY_GOLD_MINE_COINS_PER_WAVE = 4;
+const FACTORY_GEM_MINE_CHANCE_PER_WAVE = 0.2;
+const CAMERA_EDGE_DRAG_MARGIN = 160;
+const ROAD_FLOW_IDLE_FRAME_INTERVAL_MS = 33;
 const TARGET_PRIORITIES = [
   { id: "strongest", label: "strg" },
   { id: "first", label: "fst" },
   { id: "last", label: "lst" }
 ];
-const DEVELOPER_COMMANDS = ["spawnraider", "setresources", "giveitem"];
+const DEVELOPER_COMMANDS = ["spawnraider", "setresources", "giveitem", "telemetry", "copytelemetry"];
 const GIVE_ITEM_SUGGESTIONS = ["singularity", "copper", "bronze", "silver", "gold"];
 const WAVE_SPAWN_INTERVAL = 0.45;
 const WAVE_SPAWN_SPACING_MULTIPLIER = 1.6;
@@ -326,6 +331,7 @@ export class GameFrameScreen {
   #activeRunLevel = null;
   #context = null;
   #runCoins = 0;
+  #coinYield = 0;
   #runGems = [];
   #runCrates = [];
   #runSettled = false;
@@ -343,6 +349,9 @@ export class GameFrameScreen {
   #towerPopupOpenToken = 0;
   #effects = [];
   #lastRunSaveAt = 0;
+  #telemetry = new RunTelemetry();
+  #lastTelemetrySampleAt = 0;
+  #lastRoadFlowDrawAt = 0;
 
   constructor({ flavorManager, saveService }) {
     this.#flavorManager = flavorManager;
@@ -377,6 +386,7 @@ export class GameFrameScreen {
         <div class="run-status-strip">
           <div class="run-pill">Level ${this.#level}</div>
           <div class="run-pill" data-wave-display>Wave ${this.#wave} / ${this.#getWaveCount()}</div>
+          ${isTelemetryEnabled() ? `<div class="run-pill telemetry-pill">TEL</div>` : ""}
           <button class="gameframe-end" type="button">End Game</button>
         </div>
         <div class="player-stat-strip">
@@ -561,6 +571,7 @@ export class GameFrameScreen {
     const tick = (now) => {
       const dt = Math.min(0.05, (now - this.#lastFrameTime) / 1000);
       this.#lastFrameTime = now;
+      this.#telemetry.recordFrame(dt * 1000);
       this.#updateFpsDisplay(now);
 
       if (this.#running) {
@@ -570,7 +581,11 @@ export class GameFrameScreen {
         this.#autosaveRun(now);
       }
 
-      if (this.#running || this.#needsDraw || this.#effects.length > 0) {
+      const shouldAnimateRoadFlow = this.#shouldAnimateRoadFlow(now);
+      if (this.#running || this.#needsDraw || this.#effects.length > 0 || shouldAnimateRoadFlow) {
+        if (shouldAnimateRoadFlow) {
+          this.#lastRoadFlowDrawAt = now;
+        }
         this.#draw();
       }
 
@@ -593,6 +608,46 @@ export class GameFrameScreen {
     if (fpsDisplay) {
       fpsDisplay.textContent = `FPS ${this.#fps.display}`;
     }
+
+    if (now - this.#lastTelemetrySampleAt >= 1000) {
+      this.#lastTelemetrySampleAt = now;
+      this.#telemetry.recordPerformanceSample({
+        fps: this.#fps.display,
+        wave: this.#wave,
+        activeRaiders: this.#raiders.length,
+        activeEffects: this.#effects.length,
+        towerCount: this.#towers.length,
+        resources: this.#resources,
+        zoom: this.#camera.scale,
+        visibleRaiders: this.#countVisibleRaiders(),
+        visibleTowers: this.#countVisibleTowers()
+      });
+    }
+  }
+
+  #shouldAnimateRoadFlow(now) {
+    return Boolean(
+      this.#road?.cells?.length &&
+      !this.#gameOver &&
+      now - this.#lastRoadFlowDrawAt >= ROAD_FLOW_IDLE_FRAME_INTERVAL_MS
+    );
+  }
+
+  #countVisibleTowers() {
+    if (!this.#towers.length) return 0;
+    const visible = this.#getVisibleWorldRect(CELL_SIZE * 4);
+    return this.#towers.reduce((count, tower) => (
+      count + (this.#rectsIntersect(visible, this.#getTowerFootprintRect(tower)) ? 1 : 0)
+    ), 0);
+  }
+
+  #countVisibleRaiders() {
+    if (!this.#raiders.length) return 0;
+    const visible = this.#getVisibleWorldRect(CELL_SIZE * 3);
+    return this.#raiders.reduce((count, raider) => {
+      const position = this.#getCachedRaiderPosition(raider);
+      return count + (this.#pointInRect(position.x, position.y, visible) ? 1 : 0);
+    }, 0);
   }
 
   #toggleTime() {
@@ -629,6 +684,7 @@ export class GameFrameScreen {
     this.#playerHealth = PLAYER_MAX_HEALTH;
     this.#resources = STARTING_RESOURCES + getStartingResourceBonus(this.#saveService.getSnapshot().perks);
     this.#runCoins = 0;
+    this.#coinYield = 0;
     this.#runGems = [];
     this.#runCrates = [];
     this.#runSettled = false;
@@ -648,6 +704,7 @@ export class GameFrameScreen {
     this.#nextTowerId = 1;
     this.#effects = [];
     this.#lastRunSaveAt = 0;
+    this.#startTelemetryRun();
     this.#closeTowerPopup();
     this.#syncRunHud();
   }
@@ -656,6 +713,7 @@ export class GameFrameScreen {
     this.#playerHealth = clamp(run.playerHealth, 0, PLAYER_MAX_HEALTH);
     this.#resources = Math.max(0, run.resources);
     this.#runCoins = run.runCoins || 0;
+    this.#coinYield = Math.max(0, Math.round(Number(run.coinYield) || 0));
     this.#runGems = [...(run.runGems || [])];
     this.#runCrates = [...(run.runCrates || [])];
     this.#runSettled = false;
@@ -678,8 +736,21 @@ export class GameFrameScreen {
     this.#gameSpeed = normalizeGameSpeed(run.gameSpeed);
     this.#effects = [];
     this.#lastRunSaveAt = performance.now();
+    this.#startTelemetryRun();
     this.#closeTowerPopup();
     this.#syncRunHud();
+  }
+
+  #startTelemetryRun() {
+    this.#telemetry = new RunTelemetry();
+    this.#lastTelemetrySampleAt = performance.now();
+    this.#telemetry.startRun({
+      level: this.#level,
+      waveCount: this.#getWaveCount(),
+      startingResources: this.#resources,
+      gameSpeed: this.#gameSpeed,
+      perks: this.#saveService.getSnapshot().perks
+    });
   }
 
   #autosaveRun(now = performance.now()) {
@@ -710,6 +781,7 @@ export class GameFrameScreen {
       towers: this.#towers.map((tower) => ({ ...tower })),
       nextTowerId: this.#nextTowerId,
       runCoins: this.#runCoins,
+      coinYield: this.#coinYield,
       runGems: [...this.#runGems],
       runCrates: [...this.#runCrates],
       running: this.#running,
@@ -722,6 +794,7 @@ export class GameFrameScreen {
     this.#waveStarted = true;
     this.#spawning = true;
     this.#spawnQueue = this.#buildWaveQueue(this.#wave);
+    this.#telemetry.recordWaveStart({ wave: this.#wave, queue: this.#spawnQueue });
     this.#spawnTimer = 0;
     this.#waveElapsed = 0;
     this.#waveFactoryInterval = Math.max(0.1, this.#estimateWaveDuration(this.#spawnQueue) / FACTORY_ACTIVATIONS_PER_WAVE);
@@ -948,6 +1021,10 @@ export class GameFrameScreen {
       this.#runSetResourcesCommand(args);
     } else if (normalizedName === "giveitem") {
       this.#runGiveItemCommand(args);
+    } else if (normalizedName === "telemetry") {
+      this.#runTelemetryCommand();
+    } else if (normalizedName === "copytelemetry") {
+      this.#runCopyTelemetryCommand();
     } else {
       this.#setDeveloperConsoleStatus(`Unknown command: ${name}`, false);
       return;
@@ -1014,6 +1091,30 @@ export class GameFrameScreen {
     this.#setDeveloperConsoleStatus(`Unknown item: ${item}`, false);
   }
 
+  #runTelemetryCommand() {
+    enableTelemetry();
+
+    if (downloadLatestTelemetryRun()) {
+      this.#setDeveloperConsoleStatus("Downloaded latest telemetry JSON", true);
+    } else {
+      this.#setDeveloperConsoleStatus("Telemetry enabled. Finish a run first.", false);
+    }
+  }
+
+  async #runCopyTelemetryCommand() {
+    enableTelemetry();
+
+    try {
+      if (await copyLatestTelemetryRun()) {
+        this.#setDeveloperConsoleStatus("Copied latest telemetry JSON", true);
+      } else {
+        this.#setDeveloperConsoleStatus("Telemetry enabled. Finish a run first.", false);
+      }
+    } catch {
+      this.#setDeveloperConsoleStatus("Clipboard copy blocked by browser", false);
+    }
+  }
+
   #refreshDeveloperSuggestions() {
     const input = this.#element?.querySelector("[data-developer-console-input]");
     const datalist = this.#element?.querySelector("[data-developer-console-suggestions]");
@@ -1075,17 +1176,30 @@ export class GameFrameScreen {
     this.#ctx.translate(this.#camera.x, this.#camera.y);
     this.#ctx.scale(this.#camera.scale, this.#camera.scale);
 
-    this.#drawStaticLayer(worldSize);
-    this.#drawRoadFlow();
-    this.#drawTowerRanges();
-    this.#drawPlacementSelection();
-    this.#drawTowers();
-    this.#drawRaiders();
-    this.#drawEffects();
-    this.#drawMapHealthBars(worldSize);
-    this.#drawEdgeGradient(worldSize, this.#time);
+    this.#measureDrawSection("static_layer", () => this.#drawStaticLayer(worldSize));
+    this.#measureDrawSection("tower_footprint_masks", () => this.#drawOccupiedTowerFootprintMasks());
+    this.#measureDrawSection("road_flow", () => this.#drawRoadFlow());
+    this.#measureDrawSection("tower_ranges", () => this.#drawTowerRanges());
+    this.#measureDrawSection("placement_selection", () => this.#drawPlacementSelection());
+    this.#measureDrawSection("tower_sprites", () => this.#drawTowers());
+    this.#measureDrawSection("raiders", () => this.#drawRaiders());
+    this.#measureDrawSection("effects", () => this.#drawEffects());
+    this.#measureDrawSection("map_health_bars", () => this.#drawMapHealthBars(worldSize));
+    this.#measureDrawSection("edge_fire", () => this.#drawEdgeGradient(worldSize, this.#time));
 
     this.#ctx.restore();
+  }
+
+  #measureDrawSection(name, draw) {
+    if (!this.#telemetry.enabled) return draw();
+
+    const startedAt = performance.now();
+    const metadata = draw() || {};
+    this.#telemetry.recordRenderSection(name, performance.now() - startedAt, {
+      zoom: this.#camera.scale,
+      ...metadata
+    });
+    return metadata;
   }
 
   #markStaticLayerDirty() {
@@ -1115,7 +1229,25 @@ export class GameFrameScreen {
       this.#staticLayerDirty = false;
     }
 
-    this.#ctx.drawImage(this.#staticLayerCanvas, 0, 0);
+    const visible = this.#getVisibleWorldRect(CELL_SIZE * 2);
+    const sourceX = Math.floor(clamp(visible.x, 0, worldSize));
+    const sourceY = Math.floor(clamp(visible.y, 0, worldSize));
+    const sourceRight = Math.ceil(clamp(visible.x + visible.width, 0, worldSize));
+    const sourceBottom = Math.ceil(clamp(visible.y + visible.height, 0, worldSize));
+    const sourceWidth = Math.max(1, sourceRight - sourceX);
+    const sourceHeight = Math.max(1, sourceBottom - sourceY);
+
+    this.#ctx.drawImage(
+      this.#staticLayerCanvas,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight
+    );
   }
 
   #drawGridBase(worldSize) {
@@ -1241,6 +1373,7 @@ export class GameFrameScreen {
   }
 
   #drawRoadFlow() {
+    if (!this.#road?.cells?.length) return { rendered: 0, skipped: 1 };
     const offset = (performance.now() * 0.028) % (CELL_SIZE * 1.8);
 
     this.#ctx.save();
@@ -1250,10 +1383,11 @@ export class GameFrameScreen {
     this.#ctx.lineWidth = CELL_SIZE * 0.28;
     this.#strokeRoadPath();
     this.#ctx.restore();
+    return { rendered: 1, skipped: 0 };
   }
 
   #drawPlacementSelection() {
-    if (!this.#selectedArea) return;
+    if (!this.#selectedArea) return { rendered: 0, skipped: 1 };
 
     const rect = this.#getAreaDrawRect(this.#selectedArea);
     const color = this.#selectedArea.valid
@@ -1269,6 +1403,7 @@ export class GameFrameScreen {
     this.#ctx.lineWidth = 2;
     this.#ctx.strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
     this.#ctx.restore();
+    return { rendered: 1, skipped: 0 };
   }
 
   #drawTowerRanges() {
@@ -1278,15 +1413,18 @@ export class GameFrameScreen {
     if (tower) {
       const center = this.#getTowerCenter(tower);
       const stats = getEffectiveTowerStats(tower);
-      if (stats.rangeCells <= 0) return;
+      if (stats.rangeCells <= 0) return { rendered: 0, skipped: 1 };
       this.#drawRangeCircle(center.x, center.y, stats.rangeCells * CELL_SIZE, RARITY_COLORS[tower.rarity]);
+      return { rendered: 1, skipped: 0 };
     } else if (area?.valid) {
       const tower = this.#getFirstPlaceableTower();
-      if (!tower) return;
+      if (!tower) return { rendered: 0, skipped: 1 };
       const rect = this.#getAreaDrawRect(area);
       const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
       this.#drawRangeCircle(center.x, center.y, tower.rarities.common.rangeCells * CELL_SIZE, "rgba(255, 255, 255, 0.92)");
+      return { rendered: 1, skipped: 0 };
     }
+    return { rendered: 0, skipped: 1 };
   }
 
   #drawRangeCircle(x, y, range, color) {
@@ -1307,6 +1445,10 @@ export class GameFrameScreen {
   }
 
   #drawTowers() {
+    const visible = this.#getVisibleWorldRect(CELL_SIZE * 4);
+    let rendered = 0;
+    let skipped = 0;
+
     for (const tower of this.#towers) {
       const definition = TOWER_DEFINITIONS[tower.type];
       const footprint = getTowerFootprint(definition);
@@ -1314,6 +1456,13 @@ export class GameFrameScreen {
       const assetKey = getTowerDrawAssetKey(definition, tower);
       const image = this.#assets.get(assetKey);
       const surfaceRect = this.#getTowerSurfaceRect(tower);
+      const outline = this.#getTowerFootprintRect(tower);
+      if (!this.#rectsIntersect(visible, outline)) {
+        skipped++;
+        continue;
+      }
+      rendered++;
+
       const size = surfaceRect
         ? Math.min(surfaceRect.width, surfaceRect.height) * 1.05
         : CELL_SIZE * footprint * 1.12;
@@ -1338,21 +1487,62 @@ export class GameFrameScreen {
       this.#ctx.restore();
 
       this.#ctx.save();
-      const outline = surfaceRect || {
-        x: tower.x * CELL_SIZE,
-        y: tower.y * CELL_SIZE,
-        width: CELL_SIZE * footprint,
-        height: CELL_SIZE * footprint
-      };
       this.#ctx.strokeStyle = this.#selectedTower === tower ? RARITY_COLORS[tower.rarity] : "rgba(255, 255, 255, 0.22)";
       this.#ctx.lineWidth = this.#selectedTower === tower ? 2.5 : 1;
       this.#ctx.strokeRect(outline.x + 2, outline.y + 2, outline.width - 4, outline.height - 4);
       this.#ctx.restore();
     }
+    return { rendered, skipped };
+  }
+
+  #drawOccupiedTowerFootprintMasks() {
+    if (!this.#towers.length) return { rendered: 0, skipped: 0 };
+
+    const visible = this.#getVisibleWorldRect(CELL_SIZE);
+    let rendered = 0;
+    let skipped = 0;
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "source-over";
+    for (const tower of this.#towers) {
+      const rect = this.#getTowerFootprintRect(tower);
+      if (!this.#rectsIntersect(visible, rect)) {
+        skipped++;
+        continue;
+      }
+      const inset = 4;
+      const fillWidth = Math.max(0, rect.width - inset * 2);
+      const fillHeight = Math.max(0, rect.height - inset * 2);
+      if (fillWidth <= 0 || fillHeight <= 0) continue;
+
+      this.#ctx.fillStyle = tower.surface === "monolith"
+        ? "rgb(61, 67, 80)"
+        : "#050b12";
+      this.#ctx.fillRect(rect.x + inset, rect.y + inset, fillWidth, fillHeight);
+      rendered++;
+    }
+    this.#ctx.restore();
+    return { rendered, skipped };
+  }
+
+  #getTowerFootprintRect(tower) {
+    const surfaceRect = this.#getTowerSurfaceRect(tower);
+    if (surfaceRect) return surfaceRect;
+
+    const definition = TOWER_DEFINITIONS[tower.type];
+    const footprint = getTowerFootprint(definition);
+    return {
+      x: tower.x * CELL_SIZE,
+      y: tower.y * CELL_SIZE,
+      width: CELL_SIZE * footprint,
+      height: CELL_SIZE * footprint
+    };
   }
 
   #drawEffects() {
     const now = performance.now();
+    const visible = this.#getVisibleWorldRect(CELL_SIZE * 6);
+    let rendered = 0;
+    let skipped = 0;
     this.#effects = this.#effects.filter((effect) => {
       if (effect.done) return false;
       if (effect.type === "missile") return true;
@@ -1363,9 +1553,15 @@ export class GameFrameScreen {
     }
 
     for (const effect of this.#effects) {
+      if (!this.#effectIntersectsVisibleRect(effect, visible)) {
+        skipped++;
+        continue;
+      }
       const progress = effect.type === "missile"
         ? clamp(effect.elapsed / effect.durationSeconds, 0, 1)
         : clamp((now - effect.startedAt) / effect.duration, 0, 1);
+      const effectSection = this.#getEffectTelemetrySection(effect);
+      const startedAt = this.#telemetry.enabled ? performance.now() : 0;
 
       if (effect.type === "projectile") {
         this.#drawProjectileEffect(effect, progress);
@@ -1381,8 +1577,27 @@ export class GameFrameScreen {
         this.#drawFactoryBeamEffect(effect, progress);
       } else if (effect.type === "radar-pulse") {
         this.#drawRadarPulseEffect(effect, progress);
+      } else if (effect.type === "tower-upgrade-reveal") {
+        this.#drawTowerUpgradeRevealEffect(effect, progress);
+      }
+
+      rendered++;
+      if (this.#telemetry.enabled) {
+        this.#telemetry.recordRenderSection(effectSection, performance.now() - startedAt, {
+          zoom: this.#camera.scale,
+          rendered: 1,
+          skipped: 0
+        });
       }
     }
+
+    return { rendered, skipped };
+  }
+
+  #getEffectTelemetrySection(effect) {
+    if (effect.type === "tower-upgrade-reveal") return `effect:upgrade:${effect.rarity || "unknown"}`;
+    if (effect.type === "projectile") return `effect:projectile:${effect.towerType || "tower"}`;
+    return `effect:${effect.type}`;
   }
 
   #drawProjectileEffect(effect, progress) {
@@ -1490,6 +1705,226 @@ export class GameFrameScreen {
     this.#ctx.beginPath();
     this.#ctx.arc(effect.x, effect.y, CELL_SIZE * (0.36 + fade * 0.5), 0, TAU);
     this.#ctx.fill();
+    this.#ctx.restore();
+  }
+
+  #drawTowerUpgradeRevealEffect(effect, progress) {
+    if (effect.rarity === "common") {
+      this.#drawUpgradeSmokeEffect(effect, progress);
+    } else if (effect.rarity === "uncommon") {
+      this.#drawUpgradeMatrixEffect(effect, progress);
+    } else if (effect.rarity === "rare") {
+      this.#drawUpgradeLightningEffect(effect, progress);
+    } else if (effect.rarity === "epic") {
+      this.#drawUpgradeShieldEffect(effect, progress);
+    } else {
+      this.#drawUpgradeTornadoEffect(effect, progress);
+    }
+  }
+
+  #drawUpgradeSmokeEffect(effect, progress) {
+    const alpha = 1 - progress;
+    const radiusBase = effect.size * (0.28 + progress * 0.42);
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "source-over";
+    for (let index = 0; index < 10; index++) {
+      const angle = index * 1.73;
+      const distance = radiusBase * (0.22 + (index % 4) * 0.12);
+      const radius = effect.size * (0.13 + ((index % 3) * 0.035)) * (1 + progress * 0.7);
+      this.#ctx.fillStyle = `rgba(218, 230, 230, ${alpha * (0.12 + (index % 2) * 0.08)})`;
+      this.#ctx.beginPath();
+      this.#ctx.arc(
+        effect.x + Math.cos(angle) * distance,
+        effect.y + Math.sin(angle) * distance,
+        radius,
+        0,
+        TAU
+      );
+      this.#ctx.fill();
+    }
+    this.#ctx.restore();
+  }
+
+  #drawUpgradeMatrixEffect(effect, progress) {
+    const alpha = 1 - progress * 0.72;
+    const columns = 7;
+    const height = effect.size * 1.35;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.fillStyle = `rgba(144, 222, 120, ${alpha})`;
+    this.#ctx.font = `${Math.max(10, effect.size * 0.11)}px monospace`;
+    this.#ctx.textAlign = "center";
+    this.#ctx.textBaseline = "middle";
+    for (let column = 0; column < columns; column++) {
+      const x = effect.x - effect.size * 0.48 + (column / (columns - 1)) * effect.size * 0.96;
+      const offset = (progress * height * 1.3 + column * 17) % height;
+      for (let row = 0; row < 5; row++) {
+        const y = effect.y - height / 2 + ((offset + row * effect.size * 0.22) % height);
+        this.#ctx.globalAlpha = alpha * (1 - row * 0.13);
+        this.#ctx.fillText((column + row + Math.floor(progress * 20)) % 2 === 0 ? "1" : "0", x, y);
+      }
+    }
+    this.#ctx.restore();
+  }
+
+  #drawUpgradeLightningEffect(effect, progress) {
+    const descent = clamp(progress / 0.72, 0, 1);
+    const impact = clamp((progress - 0.62) / 0.38, 0, 1);
+    const fade = 1 - progress * 0.72;
+    const startY = effect.y - effect.size * 1.35;
+    const endY = effect.y + effect.size * 0.08;
+    const visibleEndY = startY + (endY - startY) * (1 - Math.pow(1 - descent, 2.2));
+    const segments = 9;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.strokeStyle = `rgba(96, 172, 255, ${0.35 + fade * 0.65})`;
+    this.#ctx.lineWidth = 2.2 + (1 - progress) * 2.8;
+    this.#ctx.shadowColor = "rgba(96, 172, 255, 0.95)";
+    this.#ctx.shadowBlur = 18 + impact * 16;
+
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(effect.x - effect.size * 0.22, startY);
+    for (let step = 1; step <= segments; step++) {
+      const t = step / segments;
+      const y = startY + (visibleEndY - startY) * t;
+      const bend = Math.sin((step * 2.41) + effect.x * 0.01) * effect.size * 0.16;
+      const crawl = Math.sin(progress * TAU * 2 + step * 1.8) * effect.size * 0.035;
+      const x = effect.x + bend * (1 - t * 0.18) + crawl;
+      this.#ctx.lineTo(x, y);
+    }
+    this.#ctx.stroke();
+
+    this.#ctx.lineWidth = 1.4;
+    for (let branch = 0; branch < 4; branch++) {
+      const branchStart = 0.18 + branch * 0.14;
+      if (descent < branchStart) continue;
+      const t = Math.min(0.92, branchStart + 0.08);
+      const y = startY + (visibleEndY - startY) * t;
+      const side = branch % 2 === 0 ? -1 : 1;
+      const x = effect.x + Math.sin((branch + 1) * 2.7) * effect.size * 0.12;
+      const length = effect.size * (0.18 + branch * 0.035);
+      this.#ctx.beginPath();
+      this.#ctx.moveTo(x, y);
+      this.#ctx.lineTo(x + side * length, y + effect.size * (0.05 + branch * 0.02));
+      this.#ctx.lineTo(x + side * length * 0.72, y + effect.size * (0.17 + branch * 0.03));
+      this.#ctx.stroke();
+    }
+
+    if (impact > 0) {
+      const ringRadius = effect.size * (0.2 + impact * 0.62);
+      const alpha = 1 - impact;
+      this.#ctx.strokeStyle = `rgba(96, 172, 255, ${alpha * 0.85})`;
+      this.#ctx.lineWidth = 2.4;
+      this.#ctx.beginPath();
+      this.#ctx.arc(effect.x, effect.y, ringRadius, 0, TAU);
+      this.#ctx.stroke();
+
+      this.#ctx.fillStyle = `rgba(224, 252, 255, ${alpha * 0.34})`;
+      this.#ctx.beginPath();
+      this.#ctx.arc(effect.x, effect.y, effect.size * (0.16 + impact * 0.18), 0, TAU);
+      this.#ctx.fill();
+    }
+    this.#ctx.restore();
+  }
+
+  #drawUpgradeShieldEffect(effect, progress) {
+    const forming = progress < 0.38;
+    const local = forming ? progress / 0.38 : (progress - 0.38) / 0.62;
+    const radius = effect.size * (forming ? 0.34 + local * 0.24 : 0.58 + local * 0.34);
+    const alpha = forming ? local : 1 - local;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.strokeStyle = `rgba(177, 102, 255, ${0.32 + alpha * 0.68})`;
+    this.#ctx.lineWidth = forming ? 2.5 : 2;
+    this.#ctx.shadowColor = "rgba(177, 102, 255, 0.9)";
+    this.#ctx.shadowBlur = 16;
+    for (let ring = 0; ring < 3; ring++) {
+      this.#ctx.beginPath();
+      for (let point = 0; point < 6; point++) {
+        const angle = point * TAU / 6 + ring * 0.18;
+        const x = effect.x + Math.cos(angle) * (radius - ring * effect.size * 0.08);
+        const y = effect.y + Math.sin(angle) * (radius - ring * effect.size * 0.08);
+        if (point === 0) this.#ctx.moveTo(x, y);
+        else this.#ctx.lineTo(x, y);
+      }
+      this.#ctx.closePath();
+      this.#ctx.stroke();
+    }
+
+    if (!forming) {
+      for (let shard = 0; shard < 10; shard++) {
+        const angle = shard * TAU / 10;
+        const inner = radius * 0.72;
+        const outer = radius * (0.96 + local * 0.34);
+        this.#ctx.beginPath();
+        this.#ctx.moveTo(effect.x + Math.cos(angle) * inner, effect.y + Math.sin(angle) * inner);
+        this.#ctx.lineTo(effect.x + Math.cos(angle) * outer, effect.y + Math.sin(angle) * outer);
+        this.#ctx.stroke();
+      }
+    }
+    this.#ctx.restore();
+  }
+
+  #drawUpgradeTornadoEffect(effect, progress) {
+    const swirlProgress = Math.min(1, progress / 0.68);
+    const burstProgress = Math.max(0, (progress - 0.58) / 0.42);
+    const alpha = 1 - burstProgress * 0.68;
+    const height = effect.size * 1.55;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.strokeStyle = `rgba(255, 182, 54, ${0.34 + alpha * 0.58})`;
+    this.#ctx.lineWidth = 2.4 + swirlProgress * 1.6;
+    this.#ctx.shadowColor = "rgba(255, 182, 54, 0.95)";
+    this.#ctx.shadowBlur = 18 + swirlProgress * 18;
+    for (let strand = 0; strand < 7; strand++) {
+      this.#ctx.beginPath();
+      for (let step = 0; step <= 28; step++) {
+        const t = step / 28;
+        const taper = 1 - Math.abs(t - 0.58) * 0.8;
+        const angle = strand * TAU / 7 + t * TAU * 2.15 + progress * TAU * 3.2;
+        const radius = effect.size * (0.07 + t * 0.34 + taper * 0.18 + burstProgress * 0.34);
+        const y = effect.y + (t - 0.58) * height * (1 - swirlProgress * 0.16);
+        const x = effect.x + Math.cos(angle) * radius;
+        this.#ctx.globalAlpha = alpha * (0.46 + t * 0.48) * (0.88 + Math.sin(angle) * 0.12);
+        if (step === 0) this.#ctx.moveTo(x, y);
+        else this.#ctx.lineTo(x, y);
+      }
+      this.#ctx.stroke();
+    }
+    this.#ctx.globalAlpha = 1;
+
+    for (let ring = 0; ring < 5; ring++) {
+      const local = (progress * 1.45 + ring * 0.18) % 1;
+      const y = effect.y + (local - 0.58) * height;
+      const radius = effect.size * (0.18 + local * 0.52 + burstProgress * 0.18);
+      const alphaRing = (1 - Math.abs(local - 0.58) * 1.4) * alpha * 0.5;
+      if (alphaRing <= 0) continue;
+      this.#ctx.strokeStyle = `rgba(255, 226, 128, ${alphaRing})`;
+      this.#ctx.lineWidth = 1.4;
+      this.#ctx.beginPath();
+      this.#ctx.ellipse(effect.x, y, radius, radius * 0.22, progress * TAU + ring, 0, TAU);
+      this.#ctx.stroke();
+    }
+
+    if (burstProgress > 0) {
+      this.#ctx.strokeStyle = `rgba(255, 214, 92, ${(1 - burstProgress) * 0.9})`;
+      this.#ctx.lineWidth = 2.2;
+      this.#ctx.shadowBlur = 28;
+      for (let ray = 0; ray < 22; ray++) {
+        const angle = ray * TAU / 22 + Math.sin(ray * 1.9) * 0.08;
+        const inner = effect.size * (0.12 + burstProgress * 0.12);
+        const outer = effect.size * (0.44 + burstProgress * 0.78);
+        this.#ctx.beginPath();
+        this.#ctx.moveTo(effect.x + Math.cos(angle) * inner, effect.y + Math.sin(angle) * inner);
+        this.#ctx.lineTo(effect.x + Math.cos(angle) * outer, effect.y + Math.sin(angle) * outer);
+        this.#ctx.stroke();
+      }
+    }
     this.#ctx.restore();
   }
 
@@ -1888,6 +2323,8 @@ export class GameFrameScreen {
       angle: -Math.PI / 2
     };
     this.#towers.push(tower);
+    this.#telemetry.recordTowerPlaced(tower);
+    this.#addTowerUpgradeRevealEffect(tower);
     this.#selectedArea = null;
     this.#selectedTower = tower;
     this.#closeTowerPopup();
@@ -1963,12 +2400,16 @@ export class GameFrameScreen {
   #assignSelectedTowerResearch(researchId) {
     const tower = this.#selectedTower;
     if (!tower) return;
+    const previousResearch = tower.research || "";
     if (researchId === "none") {
       tower.research = "";
     } else if (this.#canAssignResearch(tower, researchId)) {
       tower.research = researchId;
     }
 
+    if ((tower.research || "") !== previousResearch) {
+      this.#telemetry.recordResearchAssigned(tower, previousResearch);
+    }
     this.#refreshTowerResearchControls(tower, { open: false });
     this.#saveActiveRun();
     this.#requestDraw();
@@ -2041,8 +2482,11 @@ export class GameFrameScreen {
     if (this.#resources < cost) return;
 
     this.#resources -= cost;
+    const previousRarity = tower.rarity;
     tower.rarity = nextRarity;
     tower.spent += cost;
+    this.#telemetry.recordTowerUpgraded(tower, cost, previousRarity);
+    this.#addTowerUpgradeRevealEffect(tower);
     if (tower.type === "factory") {
       tower.cooldown = Math.min(tower.cooldown, this.#waveFactoryInterval);
     } else if (tower.type === "antiair") {
@@ -2058,7 +2502,9 @@ export class GameFrameScreen {
     const tower = this.#selectedTower;
     if (!tower) return;
 
-    this.#resources += this.#getRecycleValue(tower);
+    const refund = this.#getRecycleValue(tower);
+    this.#resources += refund;
+    this.#telemetry.recordTowerRecycled(tower, refund);
     this.#towers = this.#towers.filter((item) => item !== tower);
     this.#clearSelection();
     this.#syncRunHud();
@@ -2077,6 +2523,10 @@ export class GameFrameScreen {
 
   #hasAssignedResearch(towerId, researchId) {
     return this.#towers.some((tower) => tower.type === towerId && tower.research === researchId);
+  }
+
+  #getAssignedResearchCount(towerId, researchId) {
+    return this.#towers.filter((tower) => tower.type === towerId && tower.research === researchId).length;
   }
 
   #updateWave(dt) {
@@ -2117,6 +2567,12 @@ export class GameFrameScreen {
     this.#ageFactoriesForWaveEnd();
     this.#waveStarted = false;
     this.#grantWaveRewards(this.#wave);
+    this.#telemetry.recordWaveEnd({
+      wave: this.#wave,
+      durationSeconds: this.#waveElapsed,
+      resources: this.#resources,
+      playerHealth: this.#playerHealth
+    });
 
     if (this.#wave >= this.#getWaveCount()) {
       this.#finishRun({ victory: true });
@@ -2131,22 +2587,27 @@ export class GameFrameScreen {
 
   #grantWaveRewards(wave) {
     const perks = this.#saveService.getSnapshot().perks;
+    this.#grantFactoryMineRewards(wave);
 
     if (Math.random() < BASE_COIN_DROP_CHANCE) {
-      const coins = Math.round(10 * getCoinYieldMultiplier(perks));
+      const coins = Math.round(10 * getCoinYieldMultiplier(perks)) + this.#coinYield;
+      this.#coinYield = 0;
       this.#runCoins += coins;
+      this.#telemetry.recordReward({ kind: "coins", amount: coins, wave });
       queueCoinReward(coins);
     }
 
     if (Math.random() < getGemDropChance(perks)) {
       const gemId = getRandomGem();
       this.#runGems.push(gemId);
+      this.#telemetry.recordReward({ kind: "gem", amount: 1, id: gemId, wave });
       queueGemReward(gemId);
     }
 
     if (Math.random() < getCrateDropChance(perks)) {
       const crateId = getRandomCrate();
       this.#runCrates.push(crateId);
+      this.#telemetry.recordReward({ kind: "crate", amount: 1, id: crateId, wave });
       queueTextReward({
         kicker: "Crate Found",
         value: `+1 ${crateId} crate`,
@@ -2155,6 +2616,24 @@ export class GameFrameScreen {
     }
 
     this.#saveActiveRun();
+  }
+
+  #grantFactoryMineRewards(wave) {
+    const goldMines = this.#getAssignedResearchCount("factory", "gold_mine");
+    if (goldMines > 0) {
+      const coins = goldMines * FACTORY_GOLD_MINE_COINS_PER_WAVE;
+      this.#coinYield += coins;
+      this.#telemetry.recordReward({ kind: "coin_yield", amount: coins, id: "factory:gold_mine", wave });
+    }
+
+    const gemMines = this.#getAssignedResearchCount("factory", "gem_mine");
+    for (let index = 0; index < gemMines; index++) {
+      if (Math.random() >= FACTORY_GEM_MINE_CHANCE_PER_WAVE) continue;
+      const gemId = getRandomGem();
+      this.#runGems.push(gemId);
+      this.#telemetry.recordReward({ kind: "gem", amount: 1, id: `factory:gem_mine:${gemId}`, wave });
+      queueGemReward(gemId);
+    }
   }
 
   #spawnRaider(type, rarity, options = {}) {
@@ -2192,6 +2671,7 @@ export class GameFrameScreen {
 
       if (raider.progress >= endProgress) {
         raider.alive = false;
+        this.#telemetry.recordLeak(raider, raider.damage);
         this.#damagePlayer(raider.damage);
       }
     }
@@ -2213,7 +2693,9 @@ export class GameFrameScreen {
         if (tower.cooldown <= 0) {
           const target = this.#findRadarTarget(tower);
           if (target) {
-            this.#disableRaiderCloak(target, (stats.revealDuration || 5) * 1000);
+            const revealDurationMs = (stats.revealDuration || 5) * 1000;
+            this.#disableRaiderCloak(target, revealDurationMs);
+            this.#telemetry.recordRadarReveal(tower, target, revealDurationMs);
             this.#addRadarPulseEffect(tower, target, stats);
             tower.cooldown = stats.attackInterval;
           } else {
@@ -2398,7 +2880,9 @@ export class GameFrameScreen {
   }
 
   #triggerFactory(tower, stats) {
-    this.#resources += this.#getFactoryActivationYield(tower, stats);
+    const yieldAmount = this.#getFactoryActivationYield(tower, stats);
+    this.#resources += yieldAmount;
+    this.#telemetry.recordFactoryYield(tower, yieldAmount);
     tower.factoryActivations = (tower.factoryActivations || 0) + 1;
     tower.cooldown += this.#waveFactoryInterval;
   }
@@ -2461,6 +2945,25 @@ export class GameFrameScreen {
       color: RARITY_COLORS[tower.rarity],
       startedAt: performance.now(),
       duration: 200
+    });
+  }
+
+  #addTowerUpgradeRevealEffect(tower) {
+    const center = this.#getTowerCenter(tower);
+    const surfaceRect = this.#getTowerSurfaceRect(tower);
+    const footprint = getTowerFootprint(TOWER_DEFINITIONS[tower.type]);
+    const size = surfaceRect
+      ? Math.max(surfaceRect.width, surfaceRect.height)
+      : footprint * CELL_SIZE;
+    this.#effects.push({
+      type: "tower-upgrade-reveal",
+      rarity: tower.rarity,
+      x: center.x,
+      y: center.y,
+      size,
+      color: RARITY_COLORS[tower.rarity],
+      startedAt: performance.now(),
+      duration: 1000
     });
   }
 
@@ -2583,6 +3086,8 @@ export class GameFrameScreen {
   #damageRaider(raider, damage, tower = null) {
     const brittle = isRaiderFrozen(raider, this.#time) && raider.embrittled;
     let remaining = brittle ? damage * 2 : damage;
+    const startingHealth = Math.max(0, raider.health);
+    const startingShield = Math.max(0, raider.shield);
     this.#revealRaiderBars(raider);
 
     if (raider.shield > 0) {
@@ -2600,6 +3105,15 @@ export class GameFrameScreen {
     }
 
     raider.health -= remaining;
+    const healthDamage = Math.max(0, startingHealth - Math.max(0, raider.health));
+    const shieldDamage = Math.max(0, startingShield - Math.max(0, raider.shield));
+    const killed = raider.health <= 0;
+    this.#telemetry.recordTowerDamage(tower, {
+      healthDamage,
+      shieldDamage,
+      rawDamage: brittle ? damage * 2 : damage,
+      killed
+    });
 
     if (brittle && raider.alive) {
       raider.frozenUntil = 0;
@@ -2607,7 +3121,7 @@ export class GameFrameScreen {
       raider.embrittled = false;
     }
 
-    if (raider.health <= 0) {
+    if (killed) {
       this.#addRaiderExplosion(raider);
       raider.alive = false;
       this.#resources += raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER;
@@ -2815,6 +3329,11 @@ export class GameFrameScreen {
   #finishRun({ victory, context = this.#context }) {
     if (this.#runSettled || !context) return;
 
+    if (this.#coinYield > 0) {
+      this.#runCoins += this.#coinYield;
+      this.#coinYield = 0;
+    }
+
     this.#running = false;
     this.#waveStarted = false;
     this.#spawning = false;
@@ -2823,6 +3342,16 @@ export class GameFrameScreen {
     this.#runSettled = true;
     this.#runInitialized = false;
     this.#saveService.clearActiveRun();
+    this.#telemetry.finishRun({
+      victory,
+      level: this.#level,
+      wave: this.#wave,
+      playerHealth: this.#playerHealth,
+      resources: this.#resources,
+      coins: this.#runCoins,
+      gems: this.#runGems,
+      crates: this.#runCrates
+    });
 
     const button = this.#element?.querySelector(".time-toggle");
     if (button) {
@@ -2843,9 +3372,17 @@ export class GameFrameScreen {
 
   #drawRaiders() {
     const now = performance.now();
+    const visible = this.#getVisibleWorldRect(CELL_SIZE * 3);
+    let rendered = 0;
+    let skipped = 0;
 
     for (const raider of this.#raiders) {
       const position = this.#getCachedRaiderPosition(raider);
+      if (!this.#pointInRect(position.x, position.y, visible)) {
+        skipped++;
+        continue;
+      }
+      rendered++;
       const definition = RAIDER_TYPES[raider.type];
       const frameIndex = Math.floor(this.#time / definition.frameDuration) % definition.frames.length;
       const image = this.#assets.get(getRaiderAssetKey(definition, definition.frames[frameIndex], raider.rarity));
@@ -2866,6 +3403,7 @@ export class GameFrameScreen {
         this.#drawRaiderBars(raider, position);
       }
     }
+    return { rendered, skipped };
   }
 
   #shouldDrawRaiderBars(raider, now = performance.now()) {
@@ -2911,6 +3449,8 @@ export class GameFrameScreen {
   }
 
   #drawMapHealthBars(worldSize) {
+    if (!this.#visibleRectTouchesWorldEdge(CELL_SIZE * 2)) return { rendered: 0, skipped: 1 };
+
     const healthPct = clamp(this.#playerHealth / PLAYER_MAX_HEALTH, 0, 1);
     const inset = CELL_SIZE * 0.42;
     const fullLength = worldSize - inset * 2;
@@ -2952,6 +3492,7 @@ export class GameFrameScreen {
     this.#ctx.stroke();
 
     this.#ctx.restore();
+    return { rendered: 1, skipped: 0 };
   }
 
   #drawRaiderAsset(raider, image, position) {
@@ -3388,11 +3929,90 @@ export class GameFrameScreen {
     }
   }
 
+  #getVisibleWorldRect(padding = 0) {
+    const scale = Math.max(0.0001, this.#camera.scale);
+    const left = (-this.#camera.x) / scale - padding;
+    const top = (-this.#camera.y) / scale - padding;
+    const width = window.innerWidth / scale + padding * 2;
+    const height = window.innerHeight / scale + padding * 2;
+
+    return {
+      x: left,
+      y: top,
+      width,
+      height
+    };
+  }
+
+  #rectsIntersect(a, b) {
+    return (
+      a.x < b.x + b.width &&
+      a.x + a.width > b.x &&
+      a.y < b.y + b.height &&
+      a.y + a.height > b.y
+    );
+  }
+
+  #pointInRect(x, y, rect) {
+    return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+  }
+
+  #visibleRectTouchesWorldEdge(padding = 0) {
+    const rect = this.#getVisibleWorldRect(padding);
+    return (
+      rect.x <= padding ||
+      rect.y <= padding ||
+      rect.x + rect.width >= this.#worldWidth() - padding ||
+      rect.y + rect.height >= this.#worldHeight() - padding
+    );
+  }
+
+  #effectIntersectsVisibleRect(effect, visible) {
+    if (effect.type === "projectile" || effect.type === "factory-beam" || effect.type === "radar-pulse") {
+      const from = effect.from || { x: effect.x, y: effect.y };
+      const to = effect.to || { x: effect.x, y: -CELL_SIZE * 5 };
+      const rect = {
+        x: Math.min(from.x, to.x),
+        y: Math.min(from.y, to.y),
+        width: Math.abs(to.x - from.x),
+        height: Math.abs(to.y - from.y)
+      };
+      return this.#rectsIntersect(visible, {
+        x: rect.x - CELL_SIZE,
+        y: rect.y - CELL_SIZE,
+        width: rect.width + CELL_SIZE * 2,
+        height: rect.height + CELL_SIZE * 2
+      });
+    }
+
+    if (effect.type === "missile") {
+      const to = effect.lastTargetPosition || effect.from;
+      const rect = {
+        x: Math.min(effect.from.x, to.x) - CELL_SIZE,
+        y: Math.min(effect.from.y, to.y) - CELL_SIZE,
+        width: Math.abs(to.x - effect.from.x) + CELL_SIZE * 2,
+        height: Math.abs(to.y - effect.from.y) + CELL_SIZE * 2
+      };
+      return this.#rectsIntersect(visible, rect);
+    }
+
+    if (!Number.isFinite(effect.x) || !Number.isFinite(effect.y)) return true;
+    const radius = Math.max(CELL_SIZE, Number(effect.radius) || Number(effect.size) || CELL_SIZE * 2);
+    return this.#rectsIntersect(visible, {
+      x: effect.x - radius,
+      y: effect.y - radius,
+      width: radius * 2,
+      height: radius * 2
+    });
+  }
+
   #requestDraw() {
     this.#needsDraw = true;
   }
 
   #drawEdgeGradient(worldSize, time) {
+    if (!this.#visibleRectTouchesWorldEdge(CELL_SIZE * 3)) return { rendered: 0, skipped: 1 };
+
     const gradient = this.#ctx.createLinearGradient(0, 0, worldSize, worldSize);
     const colors = this.#getWaveColors(time);
     gradient.addColorStop(0, colors[0]);
@@ -3408,6 +4028,7 @@ export class GameFrameScreen {
 
     this.#drawEdgeFire(worldSize, time, colors);
     this.#ctx.restore();
+    return { rendered: 1, skipped: 0 };
   }
 
   #drawEdgeFire(worldSize, time, colors) {
@@ -3498,7 +4119,7 @@ export class GameFrameScreen {
     const worldHeight = this.#worldHeight() * this.#camera.scale;
     const width = window.innerWidth;
     const height = window.innerHeight;
-    const margin = 80;
+    const margin = CAMERA_EDGE_DRAG_MARGIN;
 
     if (worldWidth <= width) {
       this.#camera.x = (width - worldWidth) / 2;

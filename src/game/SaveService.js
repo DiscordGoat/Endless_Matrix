@@ -325,6 +325,7 @@ function normalizeActiveRun(run) {
     towers,
     nextTowerId,
     runCoins: Math.max(0, Math.round(Number(run.runCoins) || 0)),
+    coinYield: Math.max(0, Math.round(Number(run.coinYield) || 0)),
     runGems: Array.isArray(run.runGems) ? run.runGems.filter((id) => typeof id === "string") : [],
     runCrates: Array.isArray(run.runCrates) ? run.runCrates.filter((id) => typeof id === "string") : [],
     running: Boolean(run.running),

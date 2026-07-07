@@ -26,6 +26,21 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+*::selection {
+  background: transparent;
+}
+
+img,
+svg,
+canvas {
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 html,
@@ -355,6 +370,24 @@ h1 {
   gap: 12px;
 }
 
+.settings-status {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.settings-status[data-tone="success"] {
+  color: var(--level-green);
+}
+
+.settings-status[data-tone="error"] {
+  color: var(--danger);
+}
+
 .stat-cell {
   min-height: 42px;
   border: 1px solid var(--line);
@@ -551,6 +584,13 @@ h1 {
   gap: 12px;
 }
 
+.tower-browser {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
 .coin-readout {
   min-height: 42px;
   min-width: 118px;
@@ -627,9 +667,7 @@ h1 {
 .tower-card {
   min-height: 132px;
   border: 1px solid currentColor;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
-    rgba(255, 255, 255, 0.015);
+  background: transparent;
   color: rgba(255, 255, 255, 0.82);
   cursor: pointer;
   display: grid;
@@ -638,7 +676,9 @@ h1 {
   padding: 12px 9px;
   text-align: left;
   transition:
+    border-color 140ms ease,
     background 140ms ease,
+    box-shadow 140ms ease,
     filter 140ms ease,
     transform 140ms ease;
 }
@@ -653,10 +693,19 @@ h1 {
 
 .tower-card:hover,
 .tower-card:focus-visible {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent),
-    rgba(255, 255, 255, 0.035);
+  background: transparent;
   outline: none;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, currentColor 30%, transparent) inset,
+    0 0 18px color-mix(in srgb, currentColor 14%, transparent);
+  transform: translateY(-1px);
+}
+
+.tower-card.selected {
+  background: transparent;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, currentColor 36%, transparent) inset,
+    0 0 24px color-mix(in srgb, currentColor 18%, transparent);
   transform: translateY(-1px);
 }
 
@@ -669,15 +718,11 @@ h1 {
 }
 
 .tower-card.unlocked {
-  background:
-    linear-gradient(180deg, rgba(68, 255, 239, 0.14), transparent),
-    rgba(68, 255, 239, 0.035);
+  background: transparent;
 }
 
 .tower-card.maxed {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, currentColor 18%, transparent), transparent),
-    rgba(255, 255, 255, 0.018);
+  background: transparent;
   opacity: 0.86;
 }
 
@@ -704,6 +749,163 @@ h1 {
 .tower-card.rarity-rare { color: var(--level-blue); }
 .tower-card.rarity-epic { color: var(--level-purple); }
 .tower-card.rarity-legendary { color: var(--level-gold); }
+
+.tower-inspector {
+  position: relative;
+  width: min(100%, 540px);
+  min-height: 0;
+  justify-self: center;
+  border: 1px solid currentColor;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, currentColor 10%, transparent), transparent 48%),
+    rgba(255, 255, 255, 0.014);
+  color: var(--level-white);
+  padding: 14px;
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  gap: 14px;
+  overflow: hidden;
+  box-shadow: 0 0 32px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.tower-inspector-close {
+  position: absolute;
+  z-index: 4;
+  right: 8px;
+  top: 8px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, currentColor 72%, transparent);
+  background: rgba(2, 5, 10, 0.76);
+  color: currentColor;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 950;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  transition:
+    background 140ms ease,
+    filter 140ms ease,
+    transform 140ms ease;
+}
+
+.tower-inspector-close:hover,
+.tower-inspector-close:focus-visible {
+  background: color-mix(in srgb, currentColor 18%, rgba(2, 5, 10, 0.82));
+  filter: brightness(1.16);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.tower-inspector-head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  align-items: center;
+  gap: 12px;
+}
+
+.tower-inspector-head h2 {
+  margin: 0 0 6px;
+  color: rgba(224, 252, 255, 0.96);
+  font-size: clamp(1rem, 3.4vw, 1.32rem);
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.tower-inspector-head span {
+  color: currentColor;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px color-mix(in srgb, currentColor 42%, transparent);
+}
+
+.tower-inspector-asset {
+  position: relative;
+  z-index: 1;
+  width: 84px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+
+.tower-inspector-asset img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 12px currentColor)
+    drop-shadow(0 0 24px color-mix(in srgb, currentColor 34%, transparent));
+}
+
+.tower-rarity-slider {
+  width: 100%;
+  accent-color: currentColor;
+  cursor: ew-resize;
+}
+
+.tower-rarity-track {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  text-align: center;
+}
+
+.tower-rarity-track span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(0.48rem, 1.7vw, 0.64rem);
+  font-weight: 950;
+  line-height: 1.08;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tower-stat-grid {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: currentColor transparent;
+}
+
+.tower-stat-row {
+  min-height: 42px;
+  border: 1px solid color-mix(in srgb, currentColor 54%, transparent);
+  background: rgba(255, 255, 255, 0.018);
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  text-transform: uppercase;
+}
+
+.tower-stat-row span {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.tower-stat-row strong {
+  color: rgba(224, 252, 255, 0.96);
+  font-size: 0.82rem;
+  font-weight: 950;
+  text-align: right;
+}
+
+.tower-unlock-button {
+  justify-content: center;
+  width: 100%;
+}
 
 .research-shell {
   width: min(100%, 820px);
@@ -1110,27 +1312,37 @@ h1 {
 .shop-perk-cell.rarity-common,
 .shop-perk-name.rarity-common,
 .perk-detail-panel.rarity-common,
-.perk-state.rarity-common { color: var(--level-white); }
+.perk-state.rarity-common,
+.tower-inspector.rarity-common,
+.tower-unlock-panel.rarity-common { color: var(--level-white); }
 
 .shop-perk-cell.rarity-uncommon,
 .shop-perk-name.rarity-uncommon,
 .perk-detail-panel.rarity-uncommon,
-.perk-state.rarity-uncommon { color: var(--level-green); }
+.perk-state.rarity-uncommon,
+.tower-inspector.rarity-uncommon,
+.tower-unlock-panel.rarity-uncommon { color: var(--level-green); }
 
 .shop-perk-cell.rarity-rare,
 .shop-perk-name.rarity-rare,
 .perk-detail-panel.rarity-rare,
-.perk-state.rarity-rare { color: var(--level-blue); }
+.perk-state.rarity-rare,
+.tower-inspector.rarity-rare,
+.tower-unlock-panel.rarity-rare { color: var(--level-blue); }
 
 .shop-perk-cell.rarity-epic,
 .shop-perk-name.rarity-epic,
 .perk-detail-panel.rarity-epic,
-.perk-state.rarity-epic { color: var(--level-purple); }
+.perk-state.rarity-epic,
+.tower-inspector.rarity-epic,
+.tower-unlock-panel.rarity-epic { color: var(--level-purple); }
 
 .shop-perk-cell.rarity-legendary,
 .shop-perk-name.rarity-legendary,
 .perk-detail-panel.rarity-legendary,
-.perk-state.rarity-legendary { color: var(--level-gold); }
+.perk-state.rarity-legendary,
+.tower-inspector.rarity-legendary,
+.tower-unlock-panel.rarity-legendary { color: var(--level-gold); }
 
 .perk-detail-layer {
   position: fixed;
@@ -1257,6 +1469,111 @@ h1 {
 
 .perk-detail-copy p {
   margin: 0;
+}
+
+.tower-unlock-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: rgba(2, 5, 10, 0.92);
+  animation: towerUnlockLayerIn var(--tower-unlock-ms, 200ms) ease-out both;
+}
+
+.tower-unlock-panel {
+  width: min(100%, 620px);
+  max-height: calc(100svh - 36px);
+  border: 1px solid currentColor;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, currentColor 14%, transparent), transparent 52%),
+    rgba(9, 13, 20, 0.96);
+  box-shadow: 0 0 58px color-mix(in srgb, currentColor 22%, transparent);
+  padding: clamp(18px, 5vw, 30px);
+  display: grid;
+  gap: 16px;
+  overflow: auto;
+  animation: towerUnlockPanelIn var(--tower-unlock-ms, 200ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tower-unlock-header {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.tower-unlock-header h2 {
+  margin: 0;
+  color: currentColor;
+  font-size: clamp(1.5rem, 9vw, 3.2rem);
+  line-height: 1;
+}
+
+.tower-unlock-header span {
+  color: rgba(224, 252, 255, 0.78);
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+}
+
+.tower-unlock-icon {
+  width: min(146px, 35vw);
+  aspect-ratio: 1;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  color: currentColor;
+}
+
+.tower-unlock-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 15px currentColor)
+    drop-shadow(0 0 32px color-mix(in srgb, currentColor 46%, transparent));
+}
+
+.tower-unlock-stats {
+  display: grid;
+  gap: 8px;
+}
+
+.tower-unlock-stat {
+  min-height: 56px;
+  border: 1px solid color-mix(in srgb, currentColor 68%, transparent);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: minmax(82px, 0.8fr) minmax(0, 1.4fr) minmax(58px, auto);
+  align-items: center;
+  gap: 10px;
+  text-transform: uppercase;
+}
+
+.tower-unlock-stat span {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.tower-unlock-stat strong {
+  color: rgba(224, 252, 255, 0.96);
+  font-size: clamp(0.78rem, 3vw, 1rem);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.tower-unlock-stat em {
+  color: currentColor;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 950;
+  text-align: right;
 }
 
 .crate-grid {
@@ -2293,6 +2610,25 @@ h1 {
   animation: rewardRowPop 240ms ease-out both;
 }
 
+@media (max-width: 760px) {
+  .tower-browser {
+    grid-template-columns: 1fr;
+    overflow: hidden;
+  }
+
+  .tower-scroll {
+    max-height: 250px;
+  }
+
+  .tower-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tower-inspector {
+    min-height: 310px;
+  }
+}
+
 @media (max-width: 390px) {
   .stat-bar {
     grid-template-columns: repeat(3, 1fr);
@@ -2307,6 +2643,27 @@ h1 {
     gap: 6px;
   }
 
+  .tower-header {
+    grid-template-columns: 1fr;
+  }
+
+  .tower-card {
+    min-height: 120px;
+  }
+
+  .tower-inspector-head {
+    grid-template-columns: minmax(0, 1fr) 70px;
+  }
+
+  .tower-inspector-asset {
+    width: 70px;
+  }
+
+  .tower-stat-row {
+    min-height: 38px;
+    padding: 7px 8px;
+  }
+
 }
 
 @keyframes screenEnter {
@@ -2318,6 +2675,28 @@ h1 {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes towerUnlockLayerIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes towerUnlockPanelIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+    filter: brightness(1.7);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
   }
 }
 
