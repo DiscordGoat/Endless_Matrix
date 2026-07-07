@@ -15,8 +15,8 @@ const CELL_SIZE = 32;
 const TARGET_BUCKET_SIZE = CELL_SIZE * 4;
 const MONOLITH_LIFT = CELL_SIZE * 0.9;
 const MONOLITH_INSET = CELL_SIZE * 0.18;
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 2.4;
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 3.2;
 const TAU = Math.PI * 2;
 const ASSET_BASE_URL = import.meta.env.BASE_URL;
 const RUNTIME_ASSET_BASE = `${ASSET_BASE_URL}assets/runtime`;
@@ -79,6 +79,7 @@ const WAVE_SPAWN_SPACING_MULTIPLIER = 1.6;
 const JET_ORBIT_CIRCUITS = 3;
 const JET_ORBIT_DURATION = 10;
 const JET_ORBIT_RADIUS_CELLS = 600 / 100 * JET_ORBIT_DURATION / TAU;
+const JET_ENTRY_PROGRESS_CELLS = Math.max(2, JET_ORBIT_RADIUS_CELLS);
 const RAIDER_SPAWN_INTERVALS = {
   walker: {
     common: 0.42,
@@ -2722,6 +2723,13 @@ export class GameFrameScreen {
         raider.embrittled = false;
       }
 
+      if (isFlyingRaider(raider) && raider.flightPhase === "entry" && raider.progress >= JET_ENTRY_PROGRESS_CELLS) {
+        raider.flightPhase = "circling";
+        raider.flightTime = 0;
+        raider.progress = JET_ENTRY_PROGRESS_CELLS;
+        continue;
+      }
+
       if (isFlyingRaider(raider) && raider.flightPhase === "circling") {
         raider.flightTime = (Number(raider.flightTime) || 0) + dt;
 
@@ -2772,7 +2780,7 @@ export class GameFrameScreen {
 
       if (tower.type === "antiair") {
         if (tower.cooldown <= 0) {
-          const target = this.#findTowerTarget(tower);
+          const target = this.#findAntiAirTarget(tower, stats);
           if (target) {
             this.#fireAntiAirMissile(tower, target, stats);
             tower.cooldown = stats.attackInterval;
@@ -3486,6 +3494,31 @@ export class GameFrameScreen {
     return { rendered, skipped };
   }
 
+  #findAntiAirTarget(tower, stats) {
+    return this.#findTowerTarget(tower, (raider) => (
+      this.#canReserveAntiAirMissile(raider, stats.damage)
+    ));
+  }
+
+  #canReserveAntiAirMissile(raider, damage) {
+    const capacity = this.#getRaiderRemainingMissileCapacity(raider);
+    const reserved = this.#getReservedMissileDamage(raider.id);
+    if (capacity <= 0) return false;
+    if (reserved <= 0) return true;
+    return reserved + (Number(damage) || 0) <= capacity;
+  }
+
+  #getRaiderRemainingMissileCapacity(raider) {
+    return Math.max(0, (Number(raider.health) || 0) + (Number(raider.shield) || 0));
+  }
+
+  #getReservedMissileDamage(raiderId) {
+    return this.#effects.reduce((total, effect) => {
+      if (effect.type !== "missile" || effect.done || effect.targetId !== raiderId) return total;
+      return total + (Number(effect.damage) || 0);
+    }, 0);
+  }
+
   #shouldDrawRaiderBars(raider, now = performance.now()) {
     return (raider.healthBarsVisibleUntil || 0) > now;
   }
@@ -4091,7 +4124,8 @@ export class GameFrameScreen {
   }
 
   #drawEdgeGradient(worldSize, time) {
-    if (!this.#visibleRectTouchesWorldEdge(CELL_SIZE * 3)) return { rendered: 0, skipped: 1 };
+    const edgeSides = this.#getVisibleEdgeSides(worldSize, CELL_SIZE * 3);
+    if (edgeSides.length <= 0) return { rendered: 0, skipped: 1 };
 
     const gradient = this.#ctx.createLinearGradient(0, 0, worldSize, worldSize);
     const colors = this.#getWaveColors(time);
@@ -4101,52 +4135,94 @@ export class GameFrameScreen {
 
     this.#ctx.save();
     this.#ctx.strokeStyle = gradient;
-    this.#ctx.lineWidth = 3;
+    this.#ctx.lineWidth = Math.max(1.25, 3 / Math.sqrt(this.#camera.scale));
     this.#ctx.shadowColor = colors[1];
-    this.#ctx.shadowBlur = 8 + this.#getBreath(time) * 8;
-    this.#ctx.strokeRect(1.5, 1.5, worldSize - 3, worldSize - 3);
+    this.#ctx.shadowBlur = this.#getEdgeShadowBlur(8 + this.#getBreath(time) * 8);
+    for (const side of edgeSides) {
+      this.#drawEdgeBorderSegment(side, worldSize);
+    }
 
-    this.#drawEdgeFire(worldSize, time, colors);
+    this.#drawEdgeFire(worldSize, time, colors, edgeSides);
     this.#ctx.restore();
-    return { rendered: 1, skipped: 0 };
+    return { rendered: edgeSides.length, skipped: 4 - edgeSides.length };
   }
 
-  #drawEdgeFire(worldSize, time, colors) {
+  #getVisibleEdgeSides(worldSize, padding) {
+    const rect = this.#getVisibleWorldRect(padding);
+    const startX = clamp(rect.x - padding, 0, worldSize);
+    const endX = clamp(rect.x + rect.width + padding, 0, worldSize);
+    const startY = clamp(rect.y - padding, 0, worldSize);
+    const endY = clamp(rect.y + rect.height + padding, 0, worldSize);
+    const sides = [];
+
+    if (rect.y <= padding && endX > startX) {
+      sides.push({ side: "top", start: startX, end: endX });
+    }
+    if (rect.x + rect.width >= worldSize - padding && endY > startY) {
+      sides.push({ side: "right", start: startY, end: endY });
+    }
+    if (rect.y + rect.height >= worldSize - padding && endX > startX) {
+      sides.push({ side: "bottom", start: startX, end: endX });
+    }
+    if (rect.x <= padding && endY > startY) {
+      sides.push({ side: "left", start: startY, end: endY });
+    }
+
+    return sides;
+  }
+
+  #drawEdgeBorderSegment(edge, worldSize) {
+    const start = edgePoint(edge.side, edge.start, 1.5, worldSize);
+    const end = edgePoint(edge.side, edge.end, 1.5, worldSize);
+
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(start.x, start.y);
+    this.#ctx.lineTo(end.x, end.y);
+    this.#ctx.stroke();
+  }
+
+  #drawEdgeFire(worldSize, time, colors, edgeSides) {
     const breath = this.#getBreath(time);
     const flameDepth = CELL_SIZE * (1.35 + breath * 0.45);
 
     this.#ctx.save();
     this.#ctx.globalCompositeOperation = "lighter";
 
-    this.#drawFireSide("top", worldSize, flameDepth, time, colors);
-    this.#drawFireSide("right", worldSize, flameDepth, time + 7.1, colors);
-    this.#drawFireSide("bottom", worldSize, flameDepth, time + 13.4, colors);
-    this.#drawFireSide("left", worldSize, flameDepth, time + 19.8, colors);
+    const offsets = { top: 0, right: 7.1, bottom: 13.4, left: 19.8 };
+    for (const edge of edgeSides) {
+      this.#drawFireSide(edge, worldSize, flameDepth, time + offsets[edge.side], colors);
+    }
 
     this.#ctx.restore();
   }
 
-  #drawFireSide(side, worldSize, depth, time, colors) {
-    const step = CELL_SIZE;
-    const segments = Math.ceil(worldSize / step);
+  #drawFireSide(edge, worldSize, depth, time, colors) {
+    const zoom = this.#camera.scale;
+    const step = CELL_SIZE * (zoom > 1.4 ? 1.75 : zoom > 0.75 ? 1.25 : 1);
+    const start = Math.floor(edge.start / step) * step;
+    const end = Math.ceil(edge.end / step) * step;
+    const segments = Math.max(1, Math.ceil((end - start) / step));
+    const widthScale = 1 / Math.sqrt(Math.max(1, zoom * 0.8));
+    const shadowScale = this.#getEdgeShadowBlur(1) / 1;
 
     for (let layer = 0; layer < 2; layer++) {
       const layerDepth = depth * (1 - layer * 0.17);
       const alpha = 0.18 - layer * 0.035;
-      const lineWidth = 9 - layer * 1.5;
+      const lineWidth = (9 - layer * 1.5) * widthScale;
       const phase = time * (0.9 + layer * 0.18) + this.#gradientSeed[`phase${String.fromCharCode(65 + layer % 3)}`];
 
       this.#ctx.beginPath();
 
       for (let index = 0; index <= segments; index++) {
-        const along = index * step;
+        const along = clamp(start + index * step, edge.start, edge.end);
+        const waveIndex = along / CELL_SIZE;
         const wave =
-          Math.sin(index * 0.72 + phase) * 0.54 +
-          Math.sin(index * 1.37 - phase * 0.72) * 0.32 +
-          Math.sin(index * 2.11 + phase * 0.38) * 0.18;
+          Math.sin(waveIndex * 0.72 + phase) * 0.54 +
+          Math.sin(waveIndex * 1.37 - phase * 0.72) * 0.32 +
+          Math.sin(waveIndex * 2.11 + phase * 0.38) * 0.18;
         const lick = Math.max(0, wave) * layerDepth;
         const inset = 2 + lick + layer * 5;
-        const point = edgePoint(side, along, inset, worldSize);
+        const point = edgePoint(edge.side, along, inset, worldSize);
 
         if (index === 0) this.#ctx.moveTo(point.x, point.y);
         else this.#ctx.lineTo(point.x, point.y);
@@ -4157,9 +4233,15 @@ export class GameFrameScreen {
       this.#ctx.lineCap = "round";
       this.#ctx.lineJoin = "round";
       this.#ctx.shadowColor = colors[layer % colors.length];
-      this.#ctx.shadowBlur = 8 - layer * 2;
+      this.#ctx.shadowBlur = (8 - layer * 2) * shadowScale;
       this.#ctx.stroke();
     }
+  }
+
+  #getEdgeShadowBlur(baseBlur) {
+    if (this.#camera.scale >= 2.4) return baseBlur * 0.35;
+    if (this.#camera.scale >= 1.4) return baseBlur * 0.55;
+    return baseBlur;
   }
 
   #getWaveColors(time) {
