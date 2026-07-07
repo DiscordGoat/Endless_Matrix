@@ -586,9 +586,11 @@ h1 {
 
 .tower-browser {
   min-height: 0;
+  height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
+  overflow: hidden;
 }
 
 .coin-readout {
@@ -650,6 +652,7 @@ h1 {
 
 .tower-scroll {
   min-height: 0;
+  height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 6px;
@@ -2642,11 +2645,6 @@ h1 {
 @media (max-width: 760px) {
   .tower-browser {
     grid-template-columns: 1fr;
-    overflow: hidden;
-  }
-
-  .tower-scroll {
-    max-height: 250px;
   }
 
   .tower-grid {

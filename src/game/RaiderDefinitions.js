@@ -357,7 +357,7 @@ export const RAIDER_TYPES = {
   nestor: {
     id: "nestor",
     label: "Nestor",
-    frames: ["heavy_transport"],
+    frames: ["nestor"],
     frameDuration: 1,
     assetScale: 1.9,
     splitOnDeath: {
