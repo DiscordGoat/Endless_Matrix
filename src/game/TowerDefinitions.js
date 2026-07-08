@@ -75,6 +75,20 @@ export const TOWER_DEFINITIONS = {
     },
     rarities: TOWER_TUNING.towers.raygun.rarities
   },
+  railgun: {
+    id: "railgun",
+    label: "Railgun",
+    asset: "Railgun",
+    footprint: 2,
+    unlockCosts: {
+      common: 100,
+      uncommon: 200,
+      rare: 400,
+      epic: 800,
+      legendary: 1600
+    },
+    rarities: TOWER_TUNING.towers.railgun.rarities
+  },
   radar: {
     id: "radar",
     label: "Radar",

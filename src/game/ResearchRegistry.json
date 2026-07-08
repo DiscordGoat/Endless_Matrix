@@ -1,5 +1,5 @@
 {
-  "order": ["minigun", "cannon", "raygun", "radar", "antiair", "factory"],
+  "order": ["minigun", "cannon", "raygun", "railgun", "radar", "antiair", "factory"],
   "definitions": {
     "minigun": {
       "towerId": "minigun",
@@ -24,16 +24,6 @@
           "summary": "-30% Speed, +60% Penetration",
           "detail": "Fires slower. Shots have a 60% chance to spread to raiders within 2 cells.",
           "position": { "q": 1, "r": 0 }
-        },
-        "sniper": {
-          "id": "sniper",
-          "towerId": "minigun",
-          "label": "Sniper",
-          "shortLabel": "Sniper",
-          "cost": 1,
-          "summary": "-90% Speed, +60% Range, +30% Penetration",
-          "detail": "Fires much slower, reaches farther, and can spread shots.",
-          "position": { "q": 0, "r": 1 }
         },
         "armor_piercing": {
           "id": "armor_piercing",
@@ -192,16 +182,52 @@
           "summary": "-50% Reload, x2 Damage",
           "detail": "Missiles reload 50% slower, but deal double damage.",
           "position": { "q": -1, "r": 0 }
-        },
-        "railgun": {
-          "id": "railgun",
-          "towerId": "antiair",
-          "label": "Railgun",
-          "shortLabel": "Railgun",
+        }
+      }
+    },
+    "railgun": {
+      "towerId": "railgun",
+      "label": "Railgun",
+      "nodes": {
+        "sniper": {
+          "id": "sniper",
+          "towerId": "railgun",
+          "label": "Sniper",
+          "shortLabel": "Sniper",
           "cost": 1,
-          "summary": "Executes Raiders Near Exit",
-          "detail": "Instantly destroys any raider type at 99% progress to the exit. Has a 100 second cooldown.",
+          "summary": "Exit-Based Range Scaling",
+          "detail": "Gain more range the closer Raiders are to the exit. No effect yet.",
+          "position": { "q": 0, "r": -1 }
+        },
+        "panic": {
+          "id": "panic",
+          "towerId": "railgun",
+          "label": "Panic",
+          "shortLabel": "Panic",
+          "cost": 1,
+          "summary": "Emergency Exit Execution",
+          "detail": "Instantly terminates a raider at the very end of the track before it escapes, then reloads for 100 seconds.",
+          "position": { "q": -1, "r": 0 }
+        },
+        "voltaic": {
+          "id": "voltaic",
+          "towerId": "railgun",
+          "label": "Voltaic",
+          "shortLabel": "Voltaic",
+          "cost": 1,
+          "summary": "+60% Penetration",
+          "detail": "Shots can arc within 3 cells, dealing 50% damage to each penetrated raider.",
           "position": { "q": 1, "r": 0 }
+        },
+        "static_electricity": {
+          "id": "static_electricity",
+          "towerId": "railgun",
+          "label": "Static Electricity",
+          "shortLabel": "Static",
+          "cost": 1,
+          "summary": "Shield-Only Execution",
+          "detail": "Targets shields only and destroys shields without damaging regular health.",
+          "position": { "q": 0, "r": 1 }
         }
       }
     },

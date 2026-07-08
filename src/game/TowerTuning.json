@@ -140,21 +140,6 @@
           },
           "statOverrides": {}
         },
-        "sniper": {
-          "statMultipliers": {
-            "attackInterval": 6,
-            "rangeCells": 1.6,
-            "damage": 10
-          },
-          "effects": {
-            "penetrationChance": 1,
-            "penetrationRadiusCells": 2,
-            "penetrationDamageMultiplier": 1,
-            "projectileDurationMs": 500
-          },
-          "statAdd": {},
-          "statOverrides": {}
-        },
         "armor_piercing": {
           "effects": {
             "shieldDamageMultiplier": 1.2
@@ -356,6 +341,78 @@
         }
       }
     },
+    "railgun": {
+      "rarities": {
+        "common": {
+          "placementCost": 50,
+          "rangeCells": 15,
+          "damage": 200,
+          "attackInterval": 10
+        },
+        "uncommon": {
+          "placementCost": 100,
+          "rangeCells": 17,
+          "damage": 300,
+          "attackInterval": 10
+        },
+        "rare": {
+          "placementCost": 200,
+          "rangeCells": 20,
+          "damage": 400,
+          "attackInterval": 10
+        },
+        "epic": {
+          "placementCost": 400,
+          "rangeCells": 22,
+          "damage": 500,
+          "attackInterval": 10
+        },
+        "legendary": {
+          "placementCost": 800,
+          "rangeCells": 25,
+          "damage": 600,
+          "attackInterval": 10
+        }
+      },
+      "combat": {
+        "beamDurationMs": 500
+      },
+      "research": {
+        "sniper": {
+          "effects": {},
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "panic": {
+          "effects": {
+            "panicProgressThreshold": 0.985,
+            "panicCooldown": 100
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "voltaic": {
+          "effects": {
+            "penetrationChance": 0.6,
+            "penetrationRadiusCells": 3,
+            "penetrationDamageMultiplier": 0.5
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        },
+        "static_electricity": {
+          "effects": {
+            "shieldOnly": 1
+          },
+          "statMultipliers": {},
+          "statAdd": {},
+          "statOverrides": {}
+        }
+      }
+    },
     "radar": {
       "rarities": {
         "common": {
@@ -470,16 +527,6 @@
           "effects": {},
           "statAdd": {},
           "statOverrides": {}
-        },
-        "railgun": {
-          "statOverrides": {
-            "attackInterval": 100
-          },
-          "effects": {
-            "railgunProgressThreshold": 0.99
-          },
-          "statMultipliers": {},
-          "statAdd": {}
         }
       }
     }

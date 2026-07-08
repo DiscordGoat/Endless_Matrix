@@ -3,6 +3,7 @@ const TELEMETRY_OPT_IN_KEY = "endlessMatrixTelemetryOptIn";
 const MAX_STORED_RUNS = 20;
 const MAX_SECTION_SAMPLES = 24;
 const HEALTHY_VALUE = 100;
+const BATTLE_TYPES = ["ground", "air", "cloaked"];
 
 export function isTelemetryEnabled() {
   if (isTelemetryOptedIn()) return true;
@@ -64,7 +65,7 @@ export class RunTelemetry {
 
     this.#run = {
       id: createTelemetryId(),
-      schemaVersion: 1,
+      schemaVersion: 2,
       startedAt: new Date().toISOString(),
       level,
       waveCount,
@@ -204,14 +205,48 @@ export class RunTelemetry {
     });
   }
 
-  recordTowerDamage(tower, { healthDamage, shieldDamage, rawDamage, killed }) {
+  recordTowerDamage(tower, { healthDamage, shieldDamage, rawDamage, killed, target }) {
     if (!this.#enabled || !this.#run || !tower) return;
     const stats = this.#getTowerStats(tower);
+    const battle = getTargetBattle(target);
+    const effectiveDamage = healthDamage + shieldDamage;
     stats.rawDamage += rawDamage;
     stats.healthDamage += healthDamage;
     stats.shieldDamage += shieldDamage;
-    stats.effectiveDamage += healthDamage + shieldDamage;
+    stats.effectiveDamage += effectiveDamage;
+    stats.damageByBattle[battle] += effectiveDamage;
+    stats.killsByBattle[battle] += killed ? 1 : 0;
     if (killed) stats.kills += 1;
+  }
+
+  recordSlowApplied(tower, raider, { durationSeconds, speedMultiplier }) {
+    if (!this.#enabled || !this.#run || !tower) return;
+    const stats = this.#getTowerStats(tower);
+    const duration = Math.max(0, Number(durationSeconds) || 0);
+    const multiplier = Math.max(0, Math.min(1, Number(speedMultiplier) || 0));
+    stats.slowApplications += 1;
+    stats.slowSeconds += duration;
+    stats.slowStrengthSeconds += duration * (1 - multiplier);
+    this.#event("slow_applied", {
+      towerId: tower.id,
+      type: tower.type,
+      rarity: tower.rarity,
+      research: tower.research || "",
+      raiderId: raider.id,
+      raiderType: raider.type,
+      raiderRarity: raider.rarity,
+      durationSeconds: roundNumber(duration, 2),
+      speedMultiplier: roundNumber(multiplier, 3)
+    });
+  }
+
+  recordSlowAssistDamage(towerId, amount, raider) {
+    if (!this.#enabled || !this.#run) return;
+    const stats = this.#getTowerStatsById(towerId);
+    if (!stats) return;
+    const damage = Math.max(0, Number(amount) || 0);
+    stats.slowAssistDamage += damage;
+    stats.supportByBattle[getTargetBattle(raider)] += damage;
   }
 
   recordFactoryYield(tower, amount) {
@@ -239,6 +274,15 @@ export class RunTelemetry {
       raiderType: raider.type,
       durationMs
     });
+  }
+
+  recordRevealAssistDamage(towerId, amount, raider) {
+    if (!this.#enabled || !this.#run) return;
+    const stats = this.#getTowerStatsById(towerId);
+    if (!stats) return;
+    const damage = Math.max(0, Number(amount) || 0);
+    stats.revealAssistDamage += damage;
+    stats.supportByBattle.cloaked += damage;
   }
 
   recordLeak(raider, damage) {
@@ -302,17 +346,29 @@ export class RunTelemetry {
         healthDamage: 0,
         shieldDamage: 0,
         effectiveDamage: 0,
+        damageByBattle: createBattleTotals(),
+        killsByBattle: createBattleTotals(),
+        supportByBattle: createBattleTotals(),
         kills: 0,
         resourcesGenerated: 0,
         factoryActivations: 0,
         reveals: 0,
         revealSeconds: 0,
+        revealAssistDamage: 0,
+        slowApplications: 0,
+        slowSeconds: 0,
+        slowStrengthSeconds: 0,
+        slowAssistDamage: 0,
         recycled: false,
         refund: 0
       };
       this.#towers.set(tower.id, stats);
     }
     return stats;
+  }
+
+  #getTowerStatsById(towerId) {
+    return this.#towers.get(towerId) || null;
   }
 
   #rawPerformance() {
@@ -420,30 +476,41 @@ export async function shareLatestTelemetryRun() {
 }
 
 function processTelemetry(rawData) {
-  const towers = rawData.towers || [];
-  const combatSpent = sum(towers, (tower) => tower.effectiveDamage > 0 ? tower.spent : 0);
-  const combatDamage = sum(towers, (tower) => tower.effectiveDamage);
-  const damagePerResourceBaseline = combatSpent > 0 ? combatDamage / combatSpent : 1;
+  const towers = (rawData.towers || []).map(normalizeTowerStats);
+  const battleStats = buildBattleStats(rawData, towers);
+  const groundBaseline = battleStats.ground.baseline || 1;
   const scoredTowers = towers.map((tower) => {
-    const contribution = tower.effectiveDamage + tower.resourcesGenerated * damagePerResourceBaseline;
+    const lane = getTowerEvaluationLane(tower);
+    const combatContribution = tower.damageByBattle[lane];
+    const supportContribution = tower.supportByBattle[lane];
+    const economyContribution = tower.resourcesGenerated * groundBaseline;
+    const contribution = combatContribution + supportContribution + economyContribution;
+    const baseline = getTowerBaseline(tower, lane, battleStats, groundBaseline);
     return {
       ...tower,
+      lane,
+      combatContribution: roundNumber(combatContribution, 2),
+      supportContribution: roundNumber(supportContribution, 2),
+      economyContribution: roundNumber(economyContribution, 2),
       contribution: roundNumber(contribution, 2),
-      contributionPerResource: tower.spent > 0 ? contribution / tower.spent : 0
+      contributionPerResource: tower.spent > 0 ? contribution / tower.spent : 0,
+      laneBaseline: baseline
     };
   });
   const scoredSpent = sum(scoredTowers, (tower) => tower.contribution > 0 ? tower.spent : 0);
   const scoredContribution = sum(scoredTowers, (tower) => tower.contribution);
-  const runBaseline = scoredSpent > 0 ? scoredContribution / scoredSpent : 0;
+  const runBaseline = scoredSpent > 0 ? scoredContribution / scoredSpent : groundBaseline;
 
   return {
     Value: {
       healthy: HEALTHY_VALUE,
-      baseline: "Run average contribution per resource spent",
+      baseline: "Battle-specific contribution per resource spent",
       notes: [
-        "Combat contribution is actual health plus shield removed.",
-        "Factory resource output is converted through the run's combat damage-per-resource baseline.",
-        "Radar/support utility is tracked as raw reveal data until a support-value baseline exists."
+        "Ground towers are compared against ground battle contribution.",
+        "Anti-air is compared only against the air battle because jets are not targetable by normal towers.",
+        "Cloaked raiders are evaluated as a separate battle, and radar receives assist credit for damage dealt while its reveal is active.",
+        "Raygun receives assist credit for damage dealt while its slow is active.",
+        "Factory resource output is converted through the ground battle damage-per-resource baseline."
       ]
     },
     run: {
@@ -460,31 +527,56 @@ function processTelemetry(rawData) {
       }
     },
     baselines: {
-      damagePerResource: roundNumber(damagePerResourceBaseline, 2),
-      contributionPerResource: roundNumber(runBaseline, 2)
+      contributionPerResource: roundNumber(runBaseline, 2),
+      ground: roundNumber(battleStats.ground.baseline, 2),
+      air: roundNumber(battleStats.air.baseline, 2),
+      cloaked: roundNumber(battleStats.cloaked.baseline, 2)
     },
+    battles: BATTLE_TYPES.map((battle) => ({
+      battle,
+      spent: roundNumber(battleStats[battle].spent, 2),
+      damage: roundNumber(battleStats[battle].damage, 2),
+      support: roundNumber(battleStats[battle].support, 2),
+      contribution: roundNumber(battleStats[battle].contribution, 2),
+      contributionPerResource: roundNumber(battleStats[battle].baseline, 2),
+      leaks: battleStats[battle].leaks,
+      leakDamage: roundNumber(battleStats[battle].leakDamage, 2)
+    })),
     towers: scoredTowers.map((tower) => {
-      const value = runBaseline > 0 && tower.contribution > 0
-        ? (tower.contributionPerResource / runBaseline) * HEALTHY_VALUE
+      const value = tower.laneBaseline > 0 && tower.contribution > 0
+        ? (tower.contributionPerResource / tower.laneBaseline) * HEALTHY_VALUE
         : null;
       return {
         towerId: tower.towerId,
         type: tower.type,
         rarity: tower.rarity,
         research: tower.research,
+        lane: tower.lane,
         spent: tower.spent,
         effectiveDamage: roundNumber(tower.effectiveDamage, 2),
+        groundDamage: roundNumber(tower.damageByBattle.ground, 2),
+        airDamage: roundNumber(tower.damageByBattle.air, 2),
+        cloakedDamage: roundNumber(tower.damageByBattle.cloaked, 2),
         kills: tower.kills,
         resourcesGenerated: roundNumber(tower.resourcesGenerated, 2),
         reveals: tower.reveals,
         revealSeconds: roundNumber(tower.revealSeconds, 2),
+        revealAssistDamage: roundNumber(tower.revealAssistDamage, 2),
+        slowApplications: tower.slowApplications,
+        slowSeconds: roundNumber(tower.slowSeconds, 2),
+        slowStrengthSeconds: roundNumber(tower.slowStrengthSeconds, 2),
+        slowAssistDamage: roundNumber(tower.slowAssistDamage, 2),
+        combatContribution: tower.combatContribution,
+        supportContribution: tower.supportContribution,
+        economyContribution: tower.economyContribution,
         contribution: tower.contribution,
         contributionPerResource: roundNumber(tower.contributionPerResource, 2),
+        laneBaseline: roundNumber(tower.laneBaseline, 2),
         Value: value === null ? null : roundNumber(value, 1),
         status: getValueStatus(value, tower)
       };
     }),
-    towerGroups: groupTowerValues(scoredTowers, runBaseline),
+    towerGroups: groupTowerValues(scoredTowers, battleStats, groundBaseline),
     performance: {
       averageFps: rawData.performance.averageFps,
       averageFrameMs: rawData.performance.averageFrameMs,
@@ -495,7 +587,7 @@ function processTelemetry(rawData) {
   };
 }
 
-function groupTowerValues(towers, runBaseline) {
+function groupTowerValues(towers, battleStats, groundBaseline) {
   const groups = new Map();
   for (const tower of towers) {
     const key = `${tower.type}:${tower.rarity}:${tower.research || "none"}`;
@@ -503,26 +595,39 @@ function groupTowerValues(towers, runBaseline) {
       type: tower.type,
       rarity: tower.rarity,
       research: tower.research || "",
+      lane: tower.lane,
       count: 0,
       spent: 0,
-      contribution: 0
+      combatContribution: 0,
+      supportContribution: 0,
+      economyContribution: 0,
+      contribution: 0,
+      laneBaseline: tower.laneBaseline
     };
     group.count += 1;
     group.spent += tower.spent;
+    group.combatContribution += tower.combatContribution;
+    group.supportContribution += tower.supportContribution;
+    group.economyContribution += tower.economyContribution;
     group.contribution += tower.contribution;
+    group.laneBaseline = getTowerBaseline(group, group.lane, battleStats, groundBaseline);
     groups.set(key, group);
   }
 
   return [...groups.values()].map((group) => {
     const contributionPerResource = group.spent > 0 ? group.contribution / group.spent : 0;
-    const value = runBaseline > 0 && group.contribution > 0
-      ? (contributionPerResource / runBaseline) * HEALTHY_VALUE
+    const value = group.laneBaseline > 0 && group.contribution > 0
+      ? (contributionPerResource / group.laneBaseline) * HEALTHY_VALUE
       : null;
     return {
       ...group,
       spent: roundNumber(group.spent, 2),
+      combatContribution: roundNumber(group.combatContribution, 2),
+      supportContribution: roundNumber(group.supportContribution, 2),
+      economyContribution: roundNumber(group.economyContribution, 2),
       contribution: roundNumber(group.contribution, 2),
       contributionPerResource: roundNumber(contributionPerResource, 2),
+      laneBaseline: roundNumber(group.laneBaseline, 2),
       Value: value === null ? null : roundNumber(value, 1),
       status: getValueStatus(value, group)
     };
@@ -530,11 +635,99 @@ function groupTowerValues(towers, runBaseline) {
 }
 
 function getValueStatus(value, tower) {
-  if (value === null && tower.reveals > 0) return "support_raw_only";
+  if (value === null && (tower.reveals > 0 || tower.slowApplications > 0)) return "support_raw_only";
   if (value === null) return "no_contribution";
   if (value < 80) return "underperforming";
   if (value > 125) return "overperforming";
   return "healthy";
+}
+
+function normalizeTowerStats(tower) {
+  const damageByBattle = {
+    ...createBattleTotals(),
+    ...(tower.damageByBattle || {})
+  };
+  const killsByBattle = {
+    ...createBattleTotals(),
+    ...(tower.killsByBattle || {})
+  };
+  const supportByBattle = {
+    ...createBattleTotals(),
+    ...(tower.supportByBattle || {})
+  };
+  if (!tower.damageByBattle) {
+    damageByBattle[getTowerEvaluationLane(tower)] = tower.effectiveDamage || 0;
+  }
+  return {
+    ...tower,
+    damageByBattle,
+    killsByBattle,
+    supportByBattle,
+    revealAssistDamage: tower.revealAssistDamage || 0,
+    slowApplications: tower.slowApplications || 0,
+    slowSeconds: tower.slowSeconds || 0,
+    slowStrengthSeconds: tower.slowStrengthSeconds || 0,
+    slowAssistDamage: tower.slowAssistDamage || 0
+  };
+}
+
+function buildBattleStats(rawData, towers) {
+  const battles = Object.fromEntries(BATTLE_TYPES.map((battle) => [battle, {
+    spent: 0,
+    damage: 0,
+    support: 0,
+    contribution: 0,
+    baseline: 0,
+    leaks: 0,
+    leakDamage: 0
+  }]));
+
+  for (const tower of towers) {
+    for (const battle of BATTLE_TYPES) {
+      const damage = tower.damageByBattle[battle] || 0;
+      const support = tower.supportByBattle[battle] || 0;
+      if (damage > 0 || support > 0) battles[battle].spent += tower.spent || 0;
+      battles[battle].damage += damage;
+      battles[battle].support += support;
+    }
+  }
+
+  for (const event of rawData.events || []) {
+    if (event.type !== "raider_leak") continue;
+    const battle = getTargetBattle(event.data);
+    battles[battle].leaks += 1;
+    battles[battle].leakDamage += Number(event.data.damage) || 0;
+  }
+
+  for (const battle of BATTLE_TYPES) {
+    battles[battle].contribution = battles[battle].damage + battles[battle].support;
+    battles[battle].baseline = battles[battle].spent > 0
+      ? battles[battle].contribution / battles[battle].spent
+      : 0;
+  }
+
+  return battles;
+}
+
+function getTowerEvaluationLane(tower) {
+  if (tower.type === "antiair") return "air";
+  if (tower.type === "radar") return "cloaked";
+  return "ground";
+}
+
+function getTowerBaseline(tower, lane, battleStats, groundBaseline) {
+  if (tower.type === "factory") return groundBaseline || battleStats.ground.baseline || 1;
+  return battleStats[lane]?.baseline || groundBaseline || 1;
+}
+
+function getTargetBattle(target) {
+  if (target?.cloaked) return "cloaked";
+  if (target?.flying || target?.type === "jet") return "air";
+  return "ground";
+}
+
+function createBattleTotals() {
+  return Object.fromEntries(BATTLE_TYPES.map((battle) => [battle, 0]));
 }
 
 function summarizeWaveQueue(queue) {
@@ -556,9 +749,20 @@ function cleanTowerStats(stats) {
     healthDamage: roundNumber(stats.healthDamage, 2),
     shieldDamage: roundNumber(stats.shieldDamage, 2),
     effectiveDamage: roundNumber(stats.effectiveDamage, 2),
+    damageByBattle: roundBattleTotals(stats.damageByBattle),
+    killsByBattle: roundBattleTotals(stats.killsByBattle, 0),
+    supportByBattle: roundBattleTotals(stats.supportByBattle),
     resourcesGenerated: roundNumber(stats.resourcesGenerated, 2),
-    revealSeconds: roundNumber(stats.revealSeconds, 2)
+    revealSeconds: roundNumber(stats.revealSeconds, 2),
+    revealAssistDamage: roundNumber(stats.revealAssistDamage, 2),
+    slowSeconds: roundNumber(stats.slowSeconds, 2),
+    slowStrengthSeconds: roundNumber(stats.slowStrengthSeconds, 2),
+    slowAssistDamage: roundNumber(stats.slowAssistDamage, 2)
   };
+}
+
+function roundBattleTotals(totals = {}, places = 2) {
+  return Object.fromEntries(BATTLE_TYPES.map((battle) => [battle, roundNumber(totals[battle] || 0, places)]));
 }
 
 function getSectionStats(sections, name) {

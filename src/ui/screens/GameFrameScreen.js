@@ -1548,6 +1548,10 @@ export class GameFrameScreen {
 
       if (effect.type === "projectile") {
         this.#drawProjectileEffect(effect, progress);
+      } else if (effect.type === "rail-beam") {
+        this.#drawRailBeamEffect(effect, progress);
+      } else if (effect.type === "electric-arc") {
+        this.#drawElectricArcEffect(effect, progress);
       } else if (effect.type === "missile") {
         this.#drawMissileEffect(effect, progress);
       } else if (effect.type === "muzzle") {
@@ -1582,6 +1586,8 @@ export class GameFrameScreen {
   #getEffectTelemetrySection(effect) {
     if (effect.type === "tower-upgrade-reveal") return `effect:upgrade:${effect.rarity || "unknown"}`;
     if (effect.type === "tower-research-bloom") return "effect:tower-research-bloom";
+    if (effect.type === "rail-beam") return "effect:rail-beam";
+    if (effect.type === "electric-arc") return "effect:electric-arc";
     if (effect.type === "projectile") return `effect:projectile:${effect.towerType || "tower"}`;
     return `effect:${effect.type}`;
   }
@@ -1691,6 +1697,67 @@ export class GameFrameScreen {
     this.#ctx.beginPath();
     this.#ctx.arc(effect.x, effect.y, CELL_SIZE * (0.36 + fade * 0.5), 0, TAU);
     this.#ctx.fill();
+    this.#ctx.restore();
+  }
+
+  #drawRailBeamEffect(effect, progress) {
+    const target = this.#getRaiderById(effect.targetId);
+    const to = target ? this.#getCachedRaiderPosition(target) : effect.lastTargetPosition;
+    if (!to) return;
+    effect.lastTargetPosition = { x: to.x, y: to.y };
+    const pulse = Math.sin(progress * Math.PI);
+    const alpha = 0.34 + pulse * 0.66;
+    const color = effect.shieldOnly ? "rgba(96, 172, 255, 0.98)" : effect.color;
+
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.lineCap = "round";
+    this.#ctx.shadowColor = color;
+    this.#ctx.shadowBlur = 18 + pulse * 16;
+    this.#ctx.strokeStyle = withAlpha(color, alpha);
+    this.#ctx.lineWidth = CELL_SIZE * (0.12 + pulse * 0.08);
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(effect.from.x, effect.from.y);
+    this.#ctx.lineTo(to.x, to.y);
+    this.#ctx.stroke();
+
+    this.#ctx.shadowBlur = 8;
+    this.#ctx.strokeStyle = "rgba(224, 252, 255, 0.92)";
+    this.#ctx.lineWidth = CELL_SIZE * 0.035;
+    this.#ctx.beginPath();
+    this.#ctx.moveTo(effect.from.x, effect.from.y);
+    this.#ctx.lineTo(to.x, to.y);
+    this.#ctx.stroke();
+    this.#ctx.restore();
+  }
+
+  #drawElectricArcEffect(effect, progress) {
+    const alpha = 1 - progress;
+    const branches = Math.max(1, Math.round(effect.branches || 3));
+    this.#ctx.save();
+    this.#ctx.globalCompositeOperation = "lighter";
+    this.#ctx.lineCap = "round";
+    this.#ctx.strokeStyle = withAlpha(effect.color, alpha * 0.92);
+    this.#ctx.lineWidth = CELL_SIZE * 0.055;
+    this.#ctx.shadowColor = effect.color;
+    this.#ctx.shadowBlur = 16;
+
+    for (let branch = 0; branch < branches; branch++) {
+      this.#ctx.beginPath();
+      for (let step = 0; step <= 6; step++) {
+        const t = step / 6;
+        const x = effect.from.x + (effect.to.x - effect.from.x) * t;
+        const y = effect.from.y + (effect.to.y - effect.from.y) * t;
+        const jitter = Math.sin((branch + 1) * 7.31 + step * 2.17 + progress * 18) * CELL_SIZE * 0.16 * (1 - Math.abs(t - 0.5));
+        const angle = Math.atan2(effect.to.y - effect.from.y, effect.to.x - effect.from.x) + Math.PI / 2;
+        const px = x + Math.cos(angle) * jitter;
+        const py = y + Math.sin(angle) * jitter;
+        if (step === 0) this.#ctx.moveTo(px, py);
+        else this.#ctx.lineTo(px, py);
+      }
+      this.#ctx.stroke();
+    }
+
     this.#ctx.restore();
   }
 
@@ -2706,6 +2773,7 @@ export class GameFrameScreen {
         raider.frozenUntil = 0;
         raider.freezeSpeedMultiplier = 1;
         raider.embrittled = false;
+        raider.slowAssistSource = null;
       }
 
       if (isFlyingRaider(raider) && raider.flightPhase === "entry" && raider.progress >= JET_ENTRY_PROGRESS_CELLS) {
@@ -2728,6 +2796,7 @@ export class GameFrameScreen {
       raider.progress += (getEffectiveRaiderSpeed(raider) / 100) * dt;
 
       if (raider.progress >= endProgress) {
+        if (this.#tryPanicRailgunBeforeLeak(raider)) continue;
         raider.alive = false;
         this.#telemetry.recordLeak(raider, raider.damage);
         this.#damagePlayer(raider.damage);
@@ -2735,6 +2804,19 @@ export class GameFrameScreen {
     }
 
     this.#raiders = this.#raiders.filter((raider) => raider.alive);
+  }
+
+  #tryPanicRailgunBeforeLeak(raider) {
+    const tower = this.#towers.find((candidate) => (
+      candidate.type === "railgun" &&
+      candidate.research === "panic" &&
+      candidate.cooldown <= 0 &&
+      canTowerTargetRaider(candidate, raider)
+    ));
+    if (!tower) return false;
+    this.#fireRailgunPanic(tower, raider);
+    tower.cooldown = getResearchEffectNumber(tower, "panicCooldown", 100);
+    return true;
   }
 
   #updateTowers(dt) {
@@ -2752,7 +2834,7 @@ export class GameFrameScreen {
           const target = this.#findRadarTarget(tower);
           if (target) {
             const revealDurationMs = (stats.revealDuration || 5) * 1000;
-            this.#disableRaiderCloak(target, revealDurationMs);
+            this.#disableRaiderCloak(target, revealDurationMs, tower);
             this.#telemetry.recordRadarReveal(tower, target, revealDurationMs);
             this.#addRadarPulseEffect(tower, target, stats);
             tower.cooldown = stats.attackInterval;
@@ -2763,11 +2845,15 @@ export class GameFrameScreen {
         continue;
       }
 
-      if (tower.type === "antiair" && tower.research === "railgun") {
+      if (tower.type === "railgun") {
         if (tower.cooldown <= 0) {
-          const target = this.#findRailgunTarget(tower);
-          if (target) {
-            this.#fireRailgun(tower, target);
+          const panicTarget = tower.research === "panic" ? this.#findRailgunPanicTarget(tower) : null;
+          const target = panicTarget || this.#findRailgunTarget(tower, stats);
+          if (panicTarget) {
+            this.#fireRailgunPanic(tower, panicTarget);
+            tower.cooldown = getResearchEffectNumber(tower, "panicCooldown", 100);
+          } else if (target) {
+            this.#fireRailgun(tower, target, stats);
             tower.cooldown = stats.attackInterval;
           } else {
             tower.cooldown = 0;
@@ -2906,6 +2992,7 @@ export class GameFrameScreen {
 
   #updateMissiles(dt) {
     this.#updateAirburstBombs(dt);
+    this.#updateRailBeamEffects(dt);
 
     for (const effect of this.#effects) {
       if (effect.type !== "missile" || effect.done) continue;
@@ -2941,6 +3028,40 @@ export class GameFrameScreen {
       }
 
       effect.done = true;
+    }
+
+    this.#raiders = this.#raiders.filter((raider) => raider.alive);
+  }
+
+  #updateRailBeamEffects(dt) {
+    for (const effect of this.#effects) {
+      if (effect.type !== "rail-beam" || effect.done) continue;
+
+      effect.elapsed += dt;
+      const target = this.#getRaiderById(effect.targetId);
+      if (!target) {
+        effect.done = true;
+        continue;
+      }
+
+      const progress = clamp(effect.elapsed / effect.durationSeconds, 0, 1);
+      const desiredDamage = effect.damage * progress;
+      const damageDelta = Math.max(0, desiredDamage - effect.appliedDamage);
+      if (damageDelta > 0) {
+        if (effect.shieldOnly) {
+          this.#damageRaiderShieldOnly(target, damageDelta, effect.tower);
+        } else {
+          this.#damageRaider(target, damageDelta, effect.tower);
+        }
+        effect.appliedDamage += damageDelta;
+      }
+
+      if (progress >= 1 || !target.alive) {
+        if (target.alive && effect.voltaic) {
+          this.#applyRailgunVoltaicEffect(effect.tower, target, effect.stats);
+        }
+        effect.done = true;
+      }
     }
 
     this.#raiders = this.#raiders.filter((raider) => raider.alive);
@@ -3116,19 +3237,45 @@ export class GameFrameScreen {
     });
   }
 
-  #fireRailgun(tower, target) {
+  #fireRailgun(tower, target, stats) {
     const center = this.#getTowerCenter(tower);
     const targetPosition = this.#getCachedRaiderPosition(target);
     tower.angle = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
+    const shieldOnly = getResearchEffectNumber(tower, "shieldOnly", 0) > 0;
+    if (shieldOnly) {
+      this.#damageRaiderShieldOnly(target, Math.max(0, target.shield), tower);
+    }
     this.#effects.push({
-      type: "projectile",
-      towerType: "antiair",
-      research: "railgun",
-      from: center,
-      to: targetPosition,
+      type: "rail-beam",
+      from: this.#getTowerMuzzle(tower, center, targetPosition),
+      targetId: target.id,
+      lastTargetPosition: targetPosition,
+      color: RARITY_COLORS[tower.rarity],
+      damage: shieldOnly ? 0 : stats.damage,
+      appliedDamage: 0,
+      shieldOnly,
+      voltaic: tower.research === "voltaic",
+      stats,
+      tower,
+      elapsed: 0,
+      durationSeconds: getRailgunBeamDurationSeconds(tower),
+      startedAt: performance.now(),
+      duration: getRailgunBeamDurationSeconds(tower) * 1000
+    });
+  }
+
+  #fireRailgunPanic(tower, target) {
+    const center = this.#getTowerCenter(tower);
+    const exit = this.#getRoadExitPosition();
+    tower.angle = Math.atan2(exit.y - center.y, exit.x - center.x);
+    this.#effects.push({
+      type: "electric-arc",
+      from: this.#getTowerMuzzle(tower, center, exit),
+      to: exit,
       color: RARITY_COLORS[tower.rarity],
       startedAt: performance.now(),
-      duration: getProjectileDuration(tower)
+      duration: 360,
+      branches: 5
     });
     this.#destroyRaiderInstantly(target, tower);
   }
@@ -3207,9 +3354,19 @@ export class GameFrameScreen {
   #freezeRaider(raider, tower) {
     if (!raider.alive || isRaiderFrozen(raider, this.#time)) return;
 
-    raider.freezeSpeedMultiplier = getRaygunFreezeSpeedMultiplier(tower, raider);
-    raider.frozenUntil = this.#time + getRaygunFreezeDuration(tower);
+    const speedMultiplier = getRaygunFreezeSpeedMultiplier(tower, raider);
+    const durationSeconds = getRaygunFreezeDuration(tower);
+    raider.freezeSpeedMultiplier = speedMultiplier;
+    raider.frozenUntil = this.#time + durationSeconds;
     raider.embrittled = tower.research === "embrittlement";
+    raider.slowAssistSource = {
+      towerId: tower.id,
+      until: raider.frozenUntil
+    };
+    this.#telemetry.recordSlowApplied(tower, raider, {
+      durationSeconds,
+      speedMultiplier
+    });
     this.#revealRaiderBars(raider);
   }
 
@@ -3239,17 +3396,26 @@ export class GameFrameScreen {
     const healthDamage = Math.max(0, startingHealth - Math.max(0, raider.health));
     const shieldDamage = Math.max(0, startingShield - Math.max(0, raider.shield));
     const killed = raider.health <= 0;
+    const effectiveDamage = healthDamage + shieldDamage;
     this.#telemetry.recordTowerDamage(tower, {
       healthDamage,
       shieldDamage,
       rawDamage,
-      killed
+      killed,
+      target: getRaiderTelemetryTarget(raider)
     });
+    if (effectiveDamage > 0 && raider.slowAssistSource?.until >= this.#time) {
+      this.#telemetry.recordSlowAssistDamage(raider.slowAssistSource.towerId, effectiveDamage, getRaiderTelemetryTarget(raider));
+    }
+    if (effectiveDamage > 0 && isCloakedRaider(raider) && raider.cloakRevealSource?.until >= performance.now()) {
+      this.#telemetry.recordRevealAssistDamage(raider.cloakRevealSource.towerId, effectiveDamage, getRaiderTelemetryTarget(raider));
+    }
 
     if (brittle && raider.alive) {
       raider.frozenUntil = 0;
       raider.freezeSpeedMultiplier = 1;
       raider.embrittled = false;
+      raider.slowAssistSource = null;
     }
 
     if (killed) {
@@ -3354,6 +3520,37 @@ export class GameFrameScreen {
     }
   }
 
+  #applyRailgunVoltaicEffect(tower, target, stats) {
+    const chance = getResearchEffectNumber(tower, "penetrationChance", 0);
+    const radius = getResearchEffectNumber(tower, "penetrationRadiusCells", 3) * CELL_SIZE;
+    const damage = stats.damage * getResearchEffectNumber(tower, "penetrationDamageMultiplier", 0.5);
+    if (chance <= 0 || radius <= 0 || damage <= 0) return;
+
+    const origin = this.#getCachedRaiderPosition(target);
+    const radiusSq = radius * radius;
+    for (const raider of this.#getRaiderCandidatesInRange(origin, radius)) {
+      if (!raider.alive || raider === target) continue;
+      if (!canTowerTargetRaider(tower, raider)) continue;
+      if (Math.random() >= chance) continue;
+
+      const position = this.#getCachedRaiderPosition(raider);
+      const dx = position.x - origin.x;
+      const dy = position.y - origin.y;
+      if (dx * dx + dy * dy > radiusSq) continue;
+
+      this.#effects.push({
+        type: "electric-arc",
+        from: origin,
+        to: position,
+        color: RARITY_COLORS[tower.rarity],
+        startedAt: performance.now(),
+        duration: 260,
+        branches: 3
+      });
+      this.#damageRaider(raider, damage, tower);
+    }
+  }
+
   #spawnAirburstBombs(tower, targetPosition, damage) {
     const bombCount = Math.max(1, Math.round(getResearchEffectNumber(tower, "airburstBombCount", 4)));
     const radius = getResearchEffectNumber(tower, "airburstBombRadiusCells", 2) * CELL_SIZE;
@@ -3403,6 +3600,24 @@ export class GameFrameScreen {
     return {
       x: (tower.x + footprint / 2) * CELL_SIZE,
       y: (tower.y + footprint / 2) * CELL_SIZE
+    };
+  }
+
+  #getTowerMuzzle(tower, center, targetPosition) {
+    const direction = Math.atan2(targetPosition.y - center.y, targetPosition.x - center.x);
+    const footprint = getTowerFootprint(TOWER_DEFINITIONS[tower.type]);
+    const muzzleDistance = CELL_SIZE * footprint * 0.44;
+    return {
+      x: center.x + Math.cos(direction) * muzzleDistance,
+      y: center.y + Math.sin(direction) * muzzleDistance
+    };
+  }
+
+  #getRoadExitPosition() {
+    const cell = this.#road.cells.at(-1) || { x: 0, y: 0 };
+    return {
+      x: cell.x * CELL_SIZE + CELL_SIZE / 2,
+      y: cell.y * CELL_SIZE + CELL_SIZE / 2
     };
   }
 
@@ -3543,13 +3758,23 @@ export class GameFrameScreen {
     ));
   }
 
-  #findRailgunTarget(tower) {
-    const threshold = getResearchEffectNumber(tower, "railgunProgressThreshold", 0.99);
+  #findRailgunTarget(tower, stats) {
+    return this.#findTowerTarget(tower, (raider) => {
+      if (tower.research === "static_electricity") {
+        return Math.max(0, Number(raider.shield) || 0) > 0;
+      }
+      return Math.max(0, Number(raider.health) || 0) + Math.max(0, Number(raider.shield) || 0) > 0;
+    });
+  }
+
+  #findRailgunPanicTarget(tower) {
+    const threshold = getResearchEffectNumber(tower, "panicProgressThreshold", 0.985);
     const endProgress = Math.max(1, this.#road.cells.length - 1);
     let best = null;
     for (const raider of this.#raiders) {
       if (!raider.alive) continue;
       if ((raider.progress || 0) / endProgress < threshold) continue;
+      if (!canTowerTargetRaider(tower, raider)) continue;
       if (!best || raider.progress > best.progress) best = raider;
     }
     return best;
@@ -3562,7 +3787,8 @@ export class GameFrameScreen {
       healthDamage,
       shieldDamage,
       rawDamage: healthDamage + shieldDamage,
-      killed: true
+      killed: true,
+      target: getRaiderTelemetryTarget(raider)
     });
     this.#addRaiderExplosion(raider);
     raider.health = 0;
@@ -3570,6 +3796,26 @@ export class GameFrameScreen {
     raider.alive = false;
     this.#resources += raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER;
     this.#handleRaiderDeathSplit(raider);
+  }
+
+  #damageRaiderShieldOnly(raider, damage, tower = null) {
+    if (!raider.alive || damage <= 0 || raider.shield <= 0) return;
+    const shieldDamage = Math.min(Math.max(0, raider.shield), damage);
+    raider.shield -= shieldDamage;
+    this.#revealRaiderBars(raider);
+    this.#telemetry.recordTowerDamage(tower, {
+      healthDamage: 0,
+      shieldDamage,
+      rawDamage: damage,
+      killed: false,
+      target: getRaiderTelemetryTarget(raider)
+    });
+    if (shieldDamage > 0 && raider.slowAssistSource?.until >= this.#time) {
+      this.#telemetry.recordSlowAssistDamage(raider.slowAssistSource.towerId, shieldDamage, getRaiderTelemetryTarget(raider));
+    }
+    if (shieldDamage > 0 && isCloakedRaider(raider) && raider.cloakRevealSource?.until >= performance.now()) {
+      this.#telemetry.recordRevealAssistDamage(raider.cloakRevealSource.towerId, shieldDamage, getRaiderTelemetryTarget(raider));
+    }
   }
 
   #canReserveAntiAirMissile(raider, damage) {
@@ -3602,9 +3848,15 @@ export class GameFrameScreen {
     );
   }
 
-  #disableRaiderCloak(raider, durationMs) {
+  #disableRaiderCloak(raider, durationMs, tower = null) {
     const until = performance.now() + durationMs;
     raider.cloakDisabledUntil = Math.max(raider.cloakDisabledUntil || 0, until);
+    if (tower) {
+      raider.cloakRevealSource = {
+        towerId: tower.id,
+        until: raider.cloakDisabledUntil
+      };
+    }
     this.#revealRaiderBars(raider, durationMs);
   }
 
@@ -4153,9 +4405,9 @@ export class GameFrameScreen {
   }
 
   #effectIntersectsVisibleRect(effect, visible) {
-    if (effect.type === "projectile" || effect.type === "factory-beam" || effect.type === "radar-pulse") {
+    if (effect.type === "projectile" || effect.type === "factory-beam" || effect.type === "radar-pulse" || effect.type === "rail-beam" || effect.type === "electric-arc") {
       const from = effect.from || { x: effect.x, y: effect.y };
-      const to = effect.to || { x: effect.x, y: -CELL_SIZE * 5 };
+      const to = effect.to || effect.lastTargetPosition || { x: effect.x, y: -CELL_SIZE * 5 };
       const rect = {
         x: Math.min(from.x, to.x),
         y: Math.min(from.y, to.y),
@@ -4468,6 +4720,16 @@ function getJetOrbitCircuits(rarity) {
   return JET_ORBIT_CIRCUITS_BY_RARITY[rarity] || JET_ORBIT_CIRCUITS_BY_RARITY.rare || 3;
 }
 
+function getRaiderTelemetryTarget(raider) {
+  return {
+    raiderId: raider.id,
+    type: raider.type,
+    rarity: raider.rarity,
+    flying: isFlyingRaider(raider),
+    cloaked: isCloakedRaider(raider)
+  };
+}
+
 function getTowerFootprint(definition) {
   return definition?.footprint || 2;
 }
@@ -4654,6 +4916,10 @@ function getProjectileDuration(tower) {
     "projectileDurationMs",
     getCombatNumber(tower.type, "projectileDurationMs", 75)
   );
+}
+
+function getRailgunBeamDurationSeconds(tower) {
+  return getCombatNumber(tower.type, "beamDurationMs", 500) / 1000;
 }
 
 function getMissileDuration(tower, stats) {

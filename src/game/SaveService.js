@@ -31,7 +31,9 @@ const DEFAULT_SAVE = {
     minigun: [],
     cannon: [],
     raygun: [],
-    radar: []
+    railgun: [],
+    radar: [],
+    antiair: []
   }
 };
 
