@@ -6,11 +6,8 @@
     <meta name="theme-color" content="#05070b" />
     <title>Endless Matrix</title>
     <script>
-      if (location.hostname.endsWith("github.io") && !location.pathname.includes("/docs/")) {
-        const basePath = location.pathname.endsWith("/")
-          ? location.pathname
-          : location.pathname.replace(/\/[^/]*$/, "/");
-        location.replace(`${basePath}docs/${location.search}${location.hash}`);
+      if (location.hostname.endsWith("github.io") && /^\/Endless_Matrix\/(?:index\.html)?$/.test(location.pathname)) {
+        location.replace(`/Endless_Matrix/docs/${location.search}${location.hash}`);
       }
     </script>
     <script type="module" crossorigin src="./assets/index-BPLa0G4T.js"></script>
