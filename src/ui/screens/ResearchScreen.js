@@ -1,4 +1,5 @@
 import { getResearchCost, RESEARCH_DEFINITIONS, RESEARCH_ORDER } from "../../game/ResearchDefinitions.js";
+import { TOWER_DEFINITIONS } from "../../game/TowerDefinitions.js";
 
 const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
 
@@ -206,10 +207,13 @@ export class ResearchScreen {
   }
 
   #renderTowerResearch(group, save, index) {
+    const tower = TOWER_DEFINITIONS[group.towerId];
+    const asset = tower?.usesRarityAssets === false ? tower.asset : `${tower?.asset || group.towerId}_common`;
+
     return `
       <section class="research-cluster" style="--cluster-index: ${index}" aria-label="${group.label} research">
         <div class="research-core">
-          <img src="${RUNTIME_ASSET_BASE}/towers/${group.towerId}_common.png" alt="" />
+          <img src="${RUNTIME_ASSET_BASE}/towers/${asset}.png" alt="" />
           <span>${group.label}</span>
         </div>
         <div class="research-node-grid">

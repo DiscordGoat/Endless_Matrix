@@ -586,7 +586,7 @@ h1 {
 
 .tower-browser {
   min-height: 0;
-  height: 100%;
+  align-self: stretch;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
@@ -652,7 +652,7 @@ h1 {
 
 .tower-scroll {
   min-height: 0;
-  height: 100%;
+  align-self: stretch;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 6px;

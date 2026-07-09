@@ -1452,7 +1452,7 @@ export class GameFrameScreen {
 
       this.#ctx.save();
       this.#ctx.translate(center.x, center.y);
-      this.#ctx.rotate(tower.angle);
+      this.#ctx.rotate(tower.angle + getTowerAssetRotationOffset(tower.type));
       this.#ctx.globalCompositeOperation = "lighter";
 
       if (image?.complete && image.naturalWidth > 0) {
@@ -4033,7 +4033,23 @@ export class GameFrameScreen {
       return this.#getJetOrbitState(raider).angle + Math.PI;
     }
 
+    if (raider.type === "walker") {
+      return this.#getWalkerDrawAngle(raider.progress);
+    }
+
     return this.#getRaiderAngle(raider.progress);
+  }
+
+  #getWalkerDrawAngle(progress) {
+    const index = Math.floor(progress);
+    const cells = this.#road.cells;
+    const a = cells[index] || cells[0];
+    const b = cells[index + 1] || a;
+    const dx = b.x - a.x;
+
+    if (dx > 0) return Math.PI / 2;
+    if (dx < 0) return -Math.PI / 2;
+    return 0;
   }
 
   #getJetOrbitState(raider) {
@@ -4710,6 +4726,10 @@ function getTowerAssetKey(definition, rarity) {
 function getTowerDrawAssetKey(definition, tower) {
   const asset = definition.emptyAsset && tower.cooldown > 0 ? definition.emptyAsset : definition.asset;
   return definition.usesRarityAssets === false ? asset : getRarityAssetName(asset, tower.rarity);
+}
+
+function getTowerAssetRotationOffset(type) {
+  return type === "railgun" ? Math.PI / 2 : 0;
 }
 
 function getRaiderAssetKey(definition, asset, rarity) {
