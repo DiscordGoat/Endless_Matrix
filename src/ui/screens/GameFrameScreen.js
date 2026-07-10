@@ -335,6 +335,8 @@ export class GameFrameScreen {
   #telemetry = new RunTelemetry();
   #lastTelemetrySampleAt = 0;
   #lastRoadFlowDrawAt = 0;
+  #displayedResources = STARTING_RESOURCES;
+  #resourceAnimationFrame = 0;
 
   constructor({ flavorManager, saveService }) {
     this.#flavorManager = flavorManager;
@@ -367,17 +369,16 @@ export class GameFrameScreen {
       <canvas class="game-canvas" aria-label="Level grid"></canvas>
       <header class="gameframe-hud">
         <div class="run-status-strip">
-          <div class="run-pill">Level ${this.#level}</div>
+          <div class="run-pill" data-level-display>Level ${this.#level}</div>
           <div class="run-pill" data-wave-display>Wave ${this.#wave} / ${this.#getWaveCount()}</div>
           ${isTelemetryEnabled() ? `<div class="run-pill telemetry-pill">TEL PRIMED</div>` : ""}
           <div class="gameframe-action-stack">
-            <button class="gameframe-end" type="button">End Game</button>
             <button class="gameframe-landscape" type="button" data-landscape-button>Landscape</button>
           </div>
         </div>
         <div class="player-stat-strip">
           <div class="run-pill fps-pill" data-fps-display>FPS --</div>
-          <div class="run-pill" data-resource-display>${Math.floor(this.#resources)}R</div>
+          <div class="run-pill resource-pill" data-resource-display>${Math.floor(this.#resources)}R</div>
         </div>
       </header>
       <button class="time-toggle" type="button" aria-label="${this.#running ? "Pause time" : "Start time"}" data-running="${this.#running}">
@@ -458,10 +459,6 @@ export class GameFrameScreen {
       this.#toggleTime();
     });
 
-    screen.querySelector(".gameframe-end").addEventListener("click", () => {
-      this.#endGame(context);
-    });
-
     screen.querySelector("[data-landscape-button]").addEventListener("click", () => {
       this.#requestLandscapeMode();
     });
@@ -496,10 +493,13 @@ export class GameFrameScreen {
     this.#gradientSeed = createGradientSeed();
     this.#loadAssets();
     this.#bindInput();
+    this.#displayedResources = Math.floor(this.#resources);
+    this.#syncViewportMode();
     this.#resize();
     this.#start();
 
     window.addEventListener("resize", this.#resize);
+    document.addEventListener("fullscreenchange", this.#syncViewportMode);
 
     return screen;
   }
@@ -508,8 +508,10 @@ export class GameFrameScreen {
     this.#saveActiveRun();
     this.#cancelTowerPopupOpen();
     cancelAnimationFrame(this.#animationFrame);
+    cancelAnimationFrame(this.#resourceAnimationFrame);
     window.removeEventListener("resize", this.#resize);
     window.removeEventListener("keydown", this.#handleKeyDown);
+    document.removeEventListener("fullscreenchange", this.#syncViewportMode);
     this.#pointers.clear();
     this.#element = null;
     this.#canvas = null;
@@ -528,6 +530,7 @@ export class GameFrameScreen {
 
   #resize = () => {
     if (!this.#canvas || !this.#ctx) return;
+    this.#syncViewportMode();
 
     const dpr = Math.min(1.5, Math.max(1, window.devicePixelRatio || 1));
     const width = window.innerWidth;
@@ -586,11 +589,20 @@ export class GameFrameScreen {
       button.textContent = "Rotate Device";
     } finally {
       button.disabled = false;
+      this.#syncViewportMode();
       window.setTimeout(() => {
         if (this.#element?.contains(button)) button.textContent = "Landscape";
       }, 1800);
     }
   }
+
+  #syncViewportMode = () => {
+    if (!this.#element) return;
+    const fullscreen = document.fullscreenElement === this.#element;
+    const landscape = window.innerWidth > window.innerHeight * 1.15;
+    this.#element.classList.toggle("is-landscape", fullscreen || landscape);
+    this.#element.classList.toggle("is-fullscreen", fullscreen);
+  };
 
   #start() {
     this.#lastFrameTime = performance.now();
@@ -695,10 +707,6 @@ export class GameFrameScreen {
     button.setAttribute("aria-label", this.#running ? "Pause time" : "Start time");
     this.#saveActiveRun();
     this.#requestDraw();
-  }
-
-  #endGame(context) {
-    this.#finishRun({ victory: false, context });
   }
 
   #setGameSpeed(speed) {
@@ -3149,7 +3157,7 @@ export class GameFrameScreen {
 
   #triggerFactory(tower, stats) {
     const yieldAmount = this.#getFactoryActivationYield(tower, stats);
-    this.#resources += yieldAmount;
+    this.#addResources(yieldAmount);
     this.#telemetry.recordFactoryYield(tower, yieldAmount);
     tower.factoryActivations = (tower.factoryActivations || 0) + 1;
     tower.cooldown += this.#waveFactoryInterval;
@@ -3470,7 +3478,7 @@ export class GameFrameScreen {
     if (killed) {
       this.#addRaiderExplosion(raider);
       raider.alive = false;
-      this.#resources += raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER;
+      this.#addResources(raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER);
       this.#handleRaiderDeathSplit(raider);
     }
   }
@@ -3712,7 +3720,7 @@ export class GameFrameScreen {
     this.#playerHealth = Math.max(0, this.#playerHealth - amount);
     const emergencyFactories = this.#towers.filter((tower) => tower.type === "factory" && tower.research === "emergency").length;
     if (emergencyFactories > 0) {
-      this.#resources += amount * emergencyFactories * getResearchEffectNumber("factory", "emergency", "damageRefundMultiplier", 1);
+      this.#addResources(amount * emergencyFactories * getResearchEffectNumber("factory", "emergency", "damageRefundMultiplier", 1));
     }
 
     if (this.#playerHealth <= 0) {
@@ -3844,7 +3852,7 @@ export class GameFrameScreen {
     raider.health = 0;
     raider.shield = 0;
     raider.alive = false;
-    this.#resources += raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER;
+    this.#addResources(raider.resources * BASE_RAIDER_RESOURCE_MULTIPLIER);
     this.#handleRaiderDeathSplit(raider);
   }
 
@@ -3866,6 +3874,15 @@ export class GameFrameScreen {
     if (shieldDamage > 0 && isCloakedRaider(raider) && raider.cloakRevealSource?.until >= performance.now()) {
       this.#telemetry.recordRevealAssistDamage(raider.cloakRevealSource.towerId, shieldDamage, getRaiderTelemetryTarget(raider));
     }
+  }
+
+  #addResources(amount) {
+    const gain = Math.max(0, Number(amount) || 0);
+    if (gain <= 0) return;
+
+    this.#resources += gain;
+    this.#syncResourceDisplay(true);
+    this.#refreshTowerPopupAffordability();
   }
 
   #canReserveAntiAirMissile(raider, damage) {
@@ -4150,15 +4167,12 @@ export class GameFrameScreen {
   #syncRunHud() {
     if (!this.#element) return;
 
-    const resourceDisplay = this.#element.querySelector("[data-resource-display]");
     const runCoinDisplay = this.#element.querySelector("[data-run-coin-display]");
     const runGemDisplay = this.#element.querySelector("[data-run-gem-display]");
     const runCrateDisplay = this.#element.querySelector("[data-run-crate-display]");
     const waveDisplay = this.#element.querySelector("[data-wave-display]");
 
-    if (resourceDisplay) {
-      resourceDisplay.textContent = `${Math.floor(this.#resources)}R`;
-    }
+    this.#syncResourceDisplay();
 
     if (runCoinDisplay) {
       runCoinDisplay.textContent = `+${this.#runCoins} Coins`;
@@ -4177,6 +4191,55 @@ export class GameFrameScreen {
     }
 
     this.#refreshTowerPopupAffordability();
+  }
+
+  #syncResourceDisplay(animateGains = false) {
+    const resourceDisplay = this.#element?.querySelector("[data-resource-display]");
+    if (!resourceDisplay) return;
+
+    const target = Math.floor(this.#resources);
+    const start = Math.floor(this.#displayedResources);
+    if (target === start) {
+      resourceDisplay.textContent = `${target}R`;
+      return;
+    }
+
+    cancelAnimationFrame(this.#resourceAnimationFrame);
+
+    if (!animateGains || target < start) {
+      this.#displayedResources = target;
+      resourceDisplay.textContent = `${target}R`;
+      resourceDisplay.style.transform = "";
+      resourceDisplay.classList.remove("resource-gain");
+      return;
+    }
+
+    const startedAt = performance.now();
+    const duration = 420;
+    resourceDisplay.classList.add("resource-gain");
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const displayed = Math.round(start + (target - start) * eased);
+      const pulse = 1 + Math.sin(progress * Math.PI * 18) * 0.045;
+
+      this.#displayedResources = displayed;
+      resourceDisplay.textContent = `${displayed}R`;
+      resourceDisplay.style.transform = `scale(${pulse})`;
+
+      if (progress < 1) {
+        this.#resourceAnimationFrame = requestAnimationFrame(tick);
+        return;
+      }
+
+      this.#displayedResources = target;
+      resourceDisplay.textContent = `${target}R`;
+      resourceDisplay.style.transform = "";
+      resourceDisplay.classList.remove("resource-gain");
+    };
+
+    this.#resourceAnimationFrame = requestAnimationFrame(tick);
   }
 
   #drawFlavorElement(element) {
