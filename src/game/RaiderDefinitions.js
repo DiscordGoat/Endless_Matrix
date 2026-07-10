@@ -375,8 +375,8 @@ export const RAIDER_TYPES = {
   serpent: {
     id: "serpent",
     label: "Serpent",
-    frames: ["walker_frame1", "walker_frame2"],
-    frameDuration: 0.16,
+    frames: ["serpent"],
+    frameDuration: 1,
     assetScale: 1.75,
     damageTakenCap: 1,
     rarities: {
@@ -390,7 +390,7 @@ export const RAIDER_TYPES = {
   wraith: {
     id: "wraith",
     label: "Wraith",
-    frames: ["vertex"],
+    frames: ["wraith"],
     frameDuration: 1,
     assetScale: 1.55,
     cloaked: true,
