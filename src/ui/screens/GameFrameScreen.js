@@ -370,7 +370,10 @@ export class GameFrameScreen {
           <div class="run-pill">Level ${this.#level}</div>
           <div class="run-pill" data-wave-display>Wave ${this.#wave} / ${this.#getWaveCount()}</div>
           ${isTelemetryEnabled() ? `<div class="run-pill telemetry-pill">TEL</div>` : ""}
-          <button class="gameframe-end" type="button">End Game</button>
+          <div class="gameframe-action-stack">
+            <button class="gameframe-end" type="button">End Game</button>
+            <button class="gameframe-landscape" type="button" data-landscape-button>Landscape</button>
+          </div>
         </div>
         <div class="player-stat-strip">
           <div class="run-pill fps-pill" data-fps-display>FPS --</div>
@@ -459,6 +462,10 @@ export class GameFrameScreen {
       this.#endGame(context);
     });
 
+    screen.querySelector("[data-landscape-button]").addEventListener("click", () => {
+      this.#requestLandscapeMode();
+    });
+
     screen.querySelector("[data-speed-slider]").addEventListener("input", (event) => {
       this.#setGameSpeed(GAME_SPEEDS[Number(event.currentTarget.value)] || 1);
     });
@@ -525,6 +532,15 @@ export class GameFrameScreen {
     const dpr = Math.min(1.5, Math.max(1, window.devicePixelRatio || 1));
     const width = window.innerWidth;
     const height = window.innerHeight;
+    const previousWidth = Number.parseFloat(this.#canvas.style.width) || 0;
+    const previousHeight = Number.parseFloat(this.#canvas.style.height) || 0;
+    const canPreserveCamera = previousWidth > 0 && previousHeight > 0;
+    const previousCenter = canPreserveCamera
+      ? {
+          x: (previousWidth / 2 - this.#camera.x) / this.#camera.scale,
+          y: (previousHeight / 2 - this.#camera.y) / this.#camera.scale
+        }
+      : null;
 
     this.#canvas.width = Math.floor(width * dpr);
     this.#canvas.height = Math.floor(height * dpr);
@@ -535,13 +551,46 @@ export class GameFrameScreen {
 
     const worldWidth = this.#worldWidth();
     const worldHeight = this.#worldHeight();
-    const fitScale = Math.min(width / worldWidth, height / worldHeight);
-    this.#camera.scale = clamp(fitScale * 1.08, MIN_ZOOM, MAX_ZOOM);
-    this.#camera.x = (width - worldWidth * this.#camera.scale) / 2;
-    this.#camera.y = (height - worldHeight * this.#camera.scale) / 2;
+    if (previousCenter) {
+      this.#camera.x = width / 2 - previousCenter.x * this.#camera.scale;
+      this.#camera.y = height / 2 - previousCenter.y * this.#camera.scale;
+    } else {
+      const fitScale = Math.min(width / worldWidth, height / worldHeight);
+      this.#camera.scale = clamp(fitScale * 1.08, MIN_ZOOM, MAX_ZOOM);
+      this.#camera.x = (width - worldWidth * this.#camera.scale) / 2;
+      this.#camera.y = (height - worldHeight * this.#camera.scale) / 2;
+    }
     this.#clampCamera();
     this.#draw();
   };
+
+  async #requestLandscapeMode() {
+    const button = this.#element?.querySelector("[data-landscape-button]");
+    if (!button) return;
+
+    button.disabled = true;
+    button.textContent = "Landscape...";
+
+    try {
+      if (!document.fullscreenElement && this.#element?.requestFullscreen) {
+        await this.#element.requestFullscreen({ navigationUI: "hide" });
+      }
+
+      if (screen.orientation?.lock) {
+        await screen.orientation.lock("landscape");
+        button.textContent = "Landscape On";
+      } else {
+        button.textContent = "Rotate Device";
+      }
+    } catch {
+      button.textContent = "Rotate Device";
+    } finally {
+      button.disabled = false;
+      window.setTimeout(() => {
+        if (this.#element?.contains(button)) button.textContent = "Landscape";
+      }, 1800);
+    }
+  }
 
   #start() {
     this.#lastFrameTime = performance.now();

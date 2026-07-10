@@ -1872,18 +1872,24 @@ h1 {
   backdrop-filter: blur(8px);
 }
 
+.gameframe-action-stack {
+  display: grid;
+  gap: 7px;
+  pointer-events: auto;
+}
+
 .fps-pill {
   min-width: 70px;
   border-color: rgba(144, 222, 120, 0.42);
   color: rgba(218, 255, 210, 0.95);
 }
 
-.gameframe-end {
+.gameframe-end,
+.gameframe-landscape {
   min-height: 38px;
+  min-width: 108px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 101, 116, 0.52);
   background: rgba(2, 5, 10, 0.72);
-  color: rgba(255, 147, 158, 0.95);
   cursor: pointer;
   font: inherit;
   font-size: 0.72rem;
@@ -1898,6 +1904,16 @@ h1 {
     transform 140ms ease;
 }
 
+.gameframe-end {
+  border: 1px solid rgba(255, 101, 116, 0.52);
+  color: rgba(255, 147, 158, 0.95);
+}
+
+.gameframe-landscape {
+  border: 1px solid rgba(68, 255, 239, 0.46);
+  color: rgba(224, 252, 255, 0.95);
+}
+
 .gameframe-end:hover,
 .gameframe-end:focus-visible {
   border-color: rgba(255, 101, 116, 0.95);
@@ -1906,8 +1922,23 @@ h1 {
   transform: translateY(-1px);
 }
 
-.gameframe-end:active {
+.gameframe-landscape:hover,
+.gameframe-landscape:focus-visible {
+  border-color: rgba(68, 255, 239, 0.95);
+  background: rgba(68, 255, 239, 0.08);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.gameframe-end:active,
+.gameframe-landscape:active {
   transform: translateY(1px) scale(0.99);
+}
+
+.gameframe-landscape:disabled {
+  cursor: default;
+  opacity: 0.72;
+  transform: none;
 }
 
 .gameframe-back {

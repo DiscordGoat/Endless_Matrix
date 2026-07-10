@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:mobile": "vite --host 0.0.0.0",
+    "forensics": "vite --config forensics/vite.config.js",
     "build": "vite build",
     "build:pages": "vite build && node scripts/sync-pages-docs.mjs",
     "preview": "vite preview --host 127.0.0.1",
