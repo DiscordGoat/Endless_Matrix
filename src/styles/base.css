@@ -2155,10 +2155,15 @@ h1 {
 
 .gameframe-screen.is-landscape [data-level-display],
 .gameframe-screen.is-landscape [data-wave-display],
-.gameframe-screen.is-landscape .fps-pill,
-.gameframe-screen.is-landscape .resource-pill {
+.gameframe-screen.is-landscape .fps-pill {
   position: fixed;
   z-index: 8;
+  opacity: 0.7;
+}
+
+.gameframe-screen.is-landscape .resource-pill {
+  position: fixed;
+  z-index: 9;
 }
 
 .gameframe-screen.is-landscape [data-level-display] {
@@ -2174,13 +2179,16 @@ h1 {
 .gameframe-screen.is-landscape [data-wave-display] {
   top: max(10px, env(safe-area-inset-top));
   left: 50%;
-  min-width: min(240px, 36vw);
+  min-width: 0;
+  width: min(172px, 26vw);
+  padding: 0 10px;
   transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .gameframe-screen.is-landscape .resource-pill {
-  top: max(10px, env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right));
+  left: calc(50% - 34px);
+  bottom: max(10px, env(safe-area-inset-bottom));
   width: 68px;
   height: 68px;
   min-width: 68px;
@@ -2204,17 +2212,20 @@ h1 {
   top: calc(max(10px, env(safe-area-inset-top)) + 76px);
   right: max(12px, env(safe-area-inset-right));
   z-index: 8;
+  opacity: 0.7;
 }
 
 .gameframe-screen.is-landscape .gameframe-back {
   left: max(12px, env(safe-area-inset-left));
   bottom: max(10px, env(safe-area-inset-bottom));
   min-width: 128px;
+  opacity: 0.7;
 }
 
 .gameframe-screen.is-landscape .time-toggle {
   left: calc(max(12px, env(safe-area-inset-left)) + 140px);
   bottom: max(10px, env(safe-area-inset-bottom));
+  opacity: 0.7;
 }
 
 .gameframe-screen.is-landscape .speed-control {
@@ -2222,6 +2233,7 @@ h1 {
   right: max(12px, env(safe-area-inset-right));
   bottom: max(10px, env(safe-area-inset-bottom));
   width: clamp(220px, 30vw, 430px);
+  opacity: 0.7;
 }
 
 .speed-notches span:first-child {

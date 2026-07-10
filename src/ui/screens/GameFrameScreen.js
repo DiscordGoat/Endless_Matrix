@@ -61,7 +61,7 @@ const GAME_SPEEDS = [1, 2, 4, 16];
 const RESEARCH_RARITY_INDEX = RARITIES.indexOf("rare");
 const FACTORY_ACTIVATIONS_PER_WAVE = 2;
 const FACTORY_SLOT_MULTIPLIERS = [1, 0.7, 0.5, 0.35, 0.25];
-const CAMERA_EDGE_DRAG_MARGIN = 160;
+const CAMERA_EDGE_DRAG_MARGIN = 320;
 const ROAD_FLOW_IDLE_FRAME_INTERVAL_MS = 33;
 const TARGET_PRIORITIES = [
   { id: "strongest", label: "strg" },
