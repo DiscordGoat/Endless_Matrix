@@ -3737,6 +3737,16 @@ export class GameFrameScreen {
       this.#coinYield = 0;
     }
 
+    const rewards = {
+      victory,
+      level: this.#level,
+      coins: this.#runCoins,
+      gems: [...this.#runGems],
+      crates: [...this.#runCrates],
+      settled: false,
+      telemetryAvailable: false
+    };
+
     this.#running = false;
     this.#waveStarted = false;
     this.#spawning = false;
@@ -3744,17 +3754,31 @@ export class GameFrameScreen {
     this.#raiders = [];
     this.#runSettled = true;
     this.#runInitialized = false;
+
+    this.#saveService.addCoins(rewards.coins);
+    this.#saveService.addGems(rewards.gems);
+    this.#saveService.addCrates(rewards.crates);
+    if (victory) {
+      this.#saveService.completeLevel(this.#level);
+    }
+    rewards.settled = true;
     this.#saveService.clearActiveRun();
-    const telemetryPayload = this.#telemetry.finishRun({
-      victory,
-      level: this.#level,
-      wave: this.#wave,
-      playerHealth: this.#playerHealth,
-      resources: this.#resources,
-      coins: this.#runCoins,
-      gems: this.#runGems,
-      crates: this.#runCrates
-    });
+
+    try {
+      const telemetryPayload = this.#telemetry.finishRun({
+        victory,
+        level: this.#level,
+        wave: this.#wave,
+        playerHealth: this.#playerHealth,
+        resources: this.#resources,
+        coins: this.#runCoins,
+        gems: this.#runGems,
+        crates: this.#runCrates
+      });
+      rewards.telemetryAvailable = Boolean(telemetryPayload);
+    } catch (error) {
+      console.error("Telemetry finalization failed; rewards were already saved.", error);
+    }
 
     const button = this.#element?.querySelector(".time-toggle");
     if (button) {
@@ -3763,14 +3787,7 @@ export class GameFrameScreen {
     }
 
     context.navigate("game-end", {
-      rewards: {
-        victory,
-        level: this.#level,
-        coins: this.#runCoins,
-        gems: [...this.#runGems],
-        crates: [...this.#runCrates],
-        telemetryAvailable: Boolean(telemetryPayload)
-      }
+      rewards
     });
   }
 

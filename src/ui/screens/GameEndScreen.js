@@ -52,7 +52,7 @@ export class GameEndScreen {
 
         <div class="game-end-items" data-item-strip></div>
 
-        <div class="game-end-actions is-hidden" data-end-actions>
+        <div class="game-end-actions" data-end-actions>
           <button class="wire-button compact game-end-continue" type="button" data-continue>
             Continue
           </button>
@@ -213,7 +213,7 @@ export class GameEndScreen {
   }
 
   #settleRewards(rewards) {
-    if (this.#settled) {
+    if (this.#settled || rewards.settled) {
       return {
         coins: rewards.coins,
         gems: rewards.gems.length,
@@ -260,6 +260,7 @@ function normalizeRewards(rewards) {
     coins: Math.max(0, Math.round(Number(rewards.coins) || 0)),
     gems: Array.isArray(rewards.gems) ? rewards.gems.filter((id) => GEM_DEFINITIONS[id]) : [],
     crates: Array.isArray(rewards.crates) ? rewards.crates.filter((id) => CRATE_DEFINITIONS[id]) : [],
+    settled: Boolean(rewards.settled),
     telemetryAvailable: Boolean(rewards.telemetryAvailable)
   };
 }
