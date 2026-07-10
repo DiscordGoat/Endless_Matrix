@@ -1,5 +1,6 @@
 import { CRATE_DEFINITIONS, getRandomCrate } from "../../game/CrateDefinitions.js";
 import { GEM_DEFINITIONS, getRandomGem } from "../../game/GemDefinitions.js";
+import { shareLatestTelemetryRun } from "../../game/TelemetryService.js";
 
 const RUNTIME_ASSET_BASE = `${import.meta.env.BASE_URL}assets/runtime`;
 const STEP_DELAY_MS = 420;
@@ -51,9 +52,16 @@ export class GameEndScreen {
 
         <div class="game-end-items" data-item-strip></div>
 
-        <button class="wire-button compact game-end-continue is-hidden" type="button" data-continue>
-          Continue
-        </button>
+        <div class="game-end-actions is-hidden" data-end-actions>
+          <button class="wire-button compact game-end-continue" type="button" data-continue>
+            Continue
+          </button>
+          ${rewards.telemetryAvailable ? `
+            <button class="wire-button compact telemetry-export" type="button" data-telemetry-export>
+              Download/Share Telemetry
+            </button>
+          ` : ""}
+        </div>
       </section>
     `;
 
@@ -61,6 +69,9 @@ export class GameEndScreen {
       context.navigate("main-screen", {
         deposit
       });
+    });
+    screen.querySelector("[data-telemetry-export]")?.addEventListener("click", (event) => {
+      this.#handleTelemetryExport(event.currentTarget);
     });
 
     this.#playSequence(rewards);
@@ -176,7 +187,29 @@ export class GameEndScreen {
   }
 
   #showContinue() {
-    this.#element?.querySelector("[data-continue]")?.classList.remove("is-hidden");
+    this.#element?.querySelector("[data-end-actions]")?.classList.remove("is-hidden");
+  }
+
+  async #handleTelemetryExport(button) {
+    if (!button) return;
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = "Preparing Telemetry";
+
+    const result = await shareLatestTelemetryRun();
+    button.textContent = result.ok
+      ? result.method === "share"
+        ? "Telemetry Shared"
+        : result.method === "clipboard"
+          ? "Telemetry Copied"
+          : "Telemetry Downloaded"
+      : result.reason || "Telemetry Unavailable";
+
+    window.setTimeout(() => {
+      if (!this.#element?.contains(button)) return;
+      button.disabled = false;
+      button.textContent = originalText;
+    }, 1800);
   }
 
   #settleRewards(rewards) {
@@ -226,7 +259,8 @@ function normalizeRewards(rewards) {
     level: Math.max(1, Math.round(Number(rewards.level) || 1)),
     coins: Math.max(0, Math.round(Number(rewards.coins) || 0)),
     gems: Array.isArray(rewards.gems) ? rewards.gems.filter((id) => GEM_DEFINITIONS[id]) : [],
-    crates: Array.isArray(rewards.crates) ? rewards.crates.filter((id) => CRATE_DEFINITIONS[id]) : []
+    crates: Array.isArray(rewards.crates) ? rewards.crates.filter((id) => CRATE_DEFINITIONS[id]) : [],
+    telemetryAvailable: Boolean(rewards.telemetryAvailable)
   };
 }
 

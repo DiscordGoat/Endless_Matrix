@@ -331,6 +331,22 @@ h1 {
   opacity: 0.42;
 }
 
+.wire-button.telemetry-toggle[data-primed="true"] {
+  border-color: var(--level-green);
+  color: var(--level-green);
+  background:
+    linear-gradient(90deg, rgba(144, 222, 120, 0.18), transparent 76%),
+    rgba(144, 222, 120, 0.035);
+}
+
+.wire-button.telemetry-toggle[data-primed="false"] {
+  border-color: rgba(255, 101, 116, 0.55);
+  color: rgba(255, 147, 158, 0.95);
+  background:
+    linear-gradient(90deg, rgba(255, 101, 116, 0.12), transparent 74%),
+    rgba(255, 255, 255, 0.018);
+}
+
 .button-index {
   color: var(--muted);
   font-size: 0.8rem;
@@ -2614,7 +2630,7 @@ h1 {
 }
 
 .game-end-row.is-hidden,
-.game-end-continue.is-hidden {
+.game-end-actions.is-hidden {
   display: none;
 }
 
@@ -2667,10 +2683,25 @@ h1 {
 .game-end-item.crate-silver { color: rgba(198, 214, 226, 0.95); }
 .game-end-item.crate-gold { color: rgba(255, 207, 79, 0.95); }
 
-.game-end-continue {
+.game-end-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  animation: rewardRowPop 240ms ease-out both;
+}
+
+.game-end-continue,
+.telemetry-export {
   justify-self: stretch;
   min-height: 56px;
-  animation: rewardRowPop 240ms ease-out both;
+}
+
+.telemetry-export {
+  border-color: var(--level-green);
+  color: var(--level-green);
+  background:
+    linear-gradient(90deg, rgba(144, 222, 120, 0.16), transparent 76%),
+    rgba(144, 222, 120, 0.035);
 }
 
 @media (max-width: 760px) {
@@ -2684,6 +2715,10 @@ h1 {
 
   .tower-inspector {
     min-height: 310px;
+  }
+
+  .game-end-actions {
+    grid-template-columns: 1fr;
   }
 }
 

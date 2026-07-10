@@ -6,10 +6,13 @@ const HEALTHY_VALUE = 100;
 const BATTLE_TYPES = ["ground", "air", "cloaked"];
 
 export function isTelemetryEnabled() {
-  if (isTelemetryOptedIn()) return true;
-  if (!import.meta.env.DEV) return false;
+  return isTelemetryAvailable() && isTelemetryPrimed();
+}
+
+export function isTelemetryAvailable() {
   const host = window.location.hostname;
   return (
+    import.meta.env.DEV ||
     host === "localhost" ||
     host === "127.0.0.1" ||
     host === "0.0.0.0" ||
@@ -19,7 +22,7 @@ export function isTelemetryEnabled() {
   );
 }
 
-export function isTelemetryOptedIn() {
+export function isTelemetryPrimed() {
   try {
     return window.localStorage.getItem(TELEMETRY_OPT_IN_KEY) === "true";
   } catch {
@@ -27,13 +30,29 @@ export function isTelemetryOptedIn() {
   }
 }
 
-export function enableTelemetry() {
+export function setTelemetryPrimed(primed) {
   try {
-    window.localStorage.setItem(TELEMETRY_OPT_IN_KEY, "true");
+    if (primed) {
+      window.localStorage.setItem(TELEMETRY_OPT_IN_KEY, "true");
+    } else {
+      window.localStorage.removeItem(TELEMETRY_OPT_IN_KEY);
+    }
     return true;
   } catch {
     return false;
   }
+}
+
+export function toggleTelemetryPrimed() {
+  const next = !isTelemetryPrimed();
+  return {
+    primed: next,
+    ok: setTelemetryPrimed(next)
+  };
+}
+
+export function enableTelemetry() {
+  return setTelemetryPrimed(true);
 }
 
 export class RunTelemetry {
@@ -437,10 +456,9 @@ export async function copyLatestTelemetryRun() {
 }
 
 export async function shareLatestTelemetryRun() {
-  enableTelemetry();
   const payload = getLatestTelemetryRun();
   if (!payload) {
-    return { ok: false, reason: "No completed telemetry run found. Telemetry is enabled for your next run." };
+    return { ok: false, reason: "No completed telemetry run found. Prime telemetry before starting a run." };
   }
 
   const runId = payload.RawData?.id || "run";

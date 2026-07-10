@@ -1,4 +1,4 @@
-import { shareLatestTelemetryRun } from "../../game/TelemetryService.js";
+import { isTelemetryAvailable, isTelemetryEnabled, toggleTelemetryPrimed } from "../../game/TelemetryService.js";
 
 export class SettingsGUI {
   #saveService;
@@ -22,9 +22,9 @@ export class SettingsGUI {
         </header>
 
         <div class="settings-actions">
-          <button class="wire-button" type="button" data-action="send-telemetry">
-            <span data-telemetry-label>Send Telemetry</span>
-            <span class="button-index">TEL</span>
+          <button class="wire-button telemetry-toggle" type="button" data-action="toggle-telemetry">
+            <span data-telemetry-label>Telemetry Unprimed</span>
+            <span class="button-index" data-telemetry-state>UNPRIMED</span>
           </button>
           <button class="wire-button danger" type="button" data-action="reset">
             <span data-reset-label>Reset Account</span>
@@ -47,11 +47,12 @@ export class SettingsGUI {
       this.#handleReset(context);
     });
 
-    screen.querySelector('[data-action="send-telemetry"]').addEventListener("click", () => {
-      this.#handleSendTelemetry();
+    screen.querySelector('[data-action="toggle-telemetry"]').addEventListener("click", () => {
+      this.#handleTelemetryToggle();
     });
 
     this.#element = screen;
+    this.#syncTelemetryState();
     return screen;
   }
 
@@ -75,26 +76,42 @@ export class SettingsGUI {
     context.navigate("main-menu");
   }
 
-  async #handleSendTelemetry() {
-    const button = this.#element.querySelector('[data-action="send-telemetry"]');
+  #handleTelemetryToggle() {
     const status = this.#element.querySelector("[data-settings-status]");
-    button.disabled = true;
-    status.textContent = "Preparing telemetry...";
     status.dataset.tone = "";
 
-    const result = await shareLatestTelemetryRun();
+    if (!isTelemetryAvailable()) {
+      status.textContent = "Telemetry is only available on the testing server.";
+      status.dataset.tone = "error";
+      this.#syncTelemetryState();
+      return;
+    }
+
+    const result = toggleTelemetryPrimed();
     if (result.ok) {
-      status.textContent = result.method === "share"
-        ? "Telemetry shared."
-        : result.method === "clipboard"
-          ? "Telemetry copied."
-          : "Telemetry downloaded.";
+      status.textContent = result.primed
+        ? "Primed. The next run will record telemetry."
+        : "Unprimed. Runs will not record telemetry.";
       status.dataset.tone = "success";
     } else {
-      status.textContent = result.reason || "Telemetry unavailable.";
+      status.textContent = "Telemetry preference could not be saved.";
       status.dataset.tone = "error";
     }
 
-    button.disabled = false;
+    this.#syncTelemetryState();
+  }
+
+  #syncTelemetryState() {
+    const button = this.#element?.querySelector('[data-action="toggle-telemetry"]');
+    const label = this.#element?.querySelector("[data-telemetry-label]");
+    const state = this.#element?.querySelector("[data-telemetry-state]");
+    if (!button || !label || !state) return;
+
+    const available = isTelemetryAvailable();
+    const primed = isTelemetryEnabled();
+    button.disabled = !available;
+    button.dataset.primed = String(primed);
+    label.textContent = primed ? "Telemetry Primed" : "Telemetry Unprimed";
+    state.textContent = primed ? "PRIMED" : "UNPRIMED";
   }
 }

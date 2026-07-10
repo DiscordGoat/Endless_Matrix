@@ -369,7 +369,7 @@ export class GameFrameScreen {
         <div class="run-status-strip">
           <div class="run-pill">Level ${this.#level}</div>
           <div class="run-pill" data-wave-display>Wave ${this.#wave} / ${this.#getWaveCount()}</div>
-          ${isTelemetryEnabled() ? `<div class="run-pill telemetry-pill">TEL</div>` : ""}
+          ${isTelemetryEnabled() ? `<div class="run-pill telemetry-pill">TEL PRIMED</div>` : ""}
           <div class="gameframe-action-stack">
             <button class="gameframe-end" type="button">End Game</button>
             <button class="gameframe-landscape" type="button" data-landscape-button>Landscape</button>
@@ -3737,7 +3737,7 @@ export class GameFrameScreen {
     this.#runSettled = true;
     this.#runInitialized = false;
     this.#saveService.clearActiveRun();
-    this.#telemetry.finishRun({
+    const telemetryPayload = this.#telemetry.finishRun({
       victory,
       level: this.#level,
       wave: this.#wave,
@@ -3760,7 +3760,8 @@ export class GameFrameScreen {
         level: this.#level,
         coins: this.#runCoins,
         gems: [...this.#runGems],
-        crates: [...this.#runCrates]
+        crates: [...this.#runCrates],
+        telemetryAvailable: Boolean(telemetryPayload)
       }
     });
   }
