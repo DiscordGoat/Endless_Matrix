@@ -16,7 +16,6 @@ export function isTelemetryAvailable() {
     host === "localhost" ||
     host === "127.0.0.1" ||
     host === "0.0.0.0" ||
-    host === "discordgoat.github.io" ||
     host.startsWith("192.168.") ||
     host.startsWith("10.") ||
     /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
