@@ -345,8 +345,8 @@ export class RunTelemetry {
       ProcessedData: processTelemetry(rawData)
     };
 
-    storeTelemetryRun(payload);
     window.__ENDLESS_MATRIX_LAST_TELEMETRY__ = payload;
+    storeTelemetryRun(payload);
     this.#event("run_finish", rawData.result);
     return payload;
   }
@@ -418,6 +418,8 @@ export class RunTelemetry {
 }
 
 export function getLatestTelemetryRun() {
+  const inMemory = window.__ENDLESS_MATRIX_LAST_TELEMETRY__ || null;
+
   try {
     const parsed = JSON.parse(window.localStorage.getItem(TELEMETRY_STORAGE_KEY) || "null");
     if (Array.isArray(parsed)) {
@@ -428,11 +430,11 @@ export function getLatestTelemetryRun() {
       } catch {
         // The newest run is still usable for this session if migration fails.
       }
-      return latest || window.__ENDLESS_MATRIX_LAST_TELEMETRY__ || null;
+      return selectLatestTelemetryRun(latest, inMemory);
     }
-    return parsed || window.__ENDLESS_MATRIX_LAST_TELEMETRY__ || null;
+    return selectLatestTelemetryRun(parsed, inMemory);
   } catch {
-    return window.__ENDLESS_MATRIX_LAST_TELEMETRY__ || null;
+    return inMemory;
   }
 }
 
@@ -886,7 +888,35 @@ function towerSnapshot(tower) {
 }
 
 function storeTelemetryRun(payload) {
-  window.localStorage.setItem(TELEMETRY_STORAGE_KEY, JSON.stringify(payload));
+  const serialized = JSON.stringify(payload);
+  try {
+    window.localStorage.setItem(TELEMETRY_STORAGE_KEY, serialized);
+    return true;
+  } catch {
+    // Remove a legacy or oversized report before retrying so stale telemetry
+    // cannot remain authoritative when the latest run is ready in memory.
+    try {
+      window.localStorage.removeItem(TELEMETRY_STORAGE_KEY);
+      window.localStorage.setItem(TELEMETRY_STORAGE_KEY, serialized);
+      return true;
+    } catch {
+      try {
+        window.localStorage.removeItem(TELEMETRY_STORAGE_KEY);
+      } catch {
+        // The in-memory report remains available for download this session.
+      }
+      return false;
+    }
+  }
+}
+
+function selectLatestTelemetryRun(stored, inMemory) {
+  if (!stored) return inMemory || null;
+  if (!inMemory) return stored;
+
+  const storedAt = Date.parse(stored.RawData?.endedAt || stored.RawData?.startedAt || "") || 0;
+  const inMemoryAt = Date.parse(inMemory.RawData?.endedAt || inMemory.RawData?.startedAt || "") || 0;
+  return inMemoryAt >= storedAt ? inMemory : stored;
 }
 
 function sum(items, selector) {
