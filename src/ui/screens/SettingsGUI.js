@@ -1,4 +1,10 @@
-import { isTelemetryAvailable, isTelemetryEnabled, toggleTelemetryPrimed } from "../../game/TelemetryService.js";
+import {
+  downloadLatestTelemetryRun,
+  getLatestTelemetryRun,
+  isTelemetryAvailable,
+  isTelemetryEnabled,
+  toggleTelemetryPrimed
+} from "../../game/TelemetryService.js";
 
 export class SettingsGUI {
   #saveService;
@@ -26,6 +32,10 @@ export class SettingsGUI {
             <span data-telemetry-label>Telemetry Unprimed</span>
             <span class="button-index" data-telemetry-state>UNPRIMED</span>
           </button>
+          <button class="wire-button" type="button" data-action="download-telemetry">
+            <span>Download Telemetry</span>
+            <span class="button-index" data-telemetry-download-state>EMPTY</span>
+          </button>
           <button class="wire-button danger" type="button" data-action="reset">
             <span data-reset-label>Reset Account</span>
             <span class="button-index">!</span>
@@ -49,6 +59,10 @@ export class SettingsGUI {
 
     screen.querySelector('[data-action="toggle-telemetry"]').addEventListener("click", () => {
       this.#handleTelemetryToggle();
+    });
+
+    screen.querySelector('[data-action="download-telemetry"]').addEventListener("click", () => {
+      this.#handleTelemetryDownload();
     });
 
     this.#element = screen;
@@ -101,6 +115,16 @@ export class SettingsGUI {
     this.#syncTelemetryState();
   }
 
+  #handleTelemetryDownload() {
+    const status = this.#element.querySelector("[data-settings-status]");
+    const downloaded = downloadLatestTelemetryRun();
+    status.textContent = downloaded
+      ? "Latest playthrough telemetry downloaded."
+      : "Complete a telemetry-enabled playthrough first.";
+    status.dataset.tone = downloaded ? "success" : "error";
+    this.#syncTelemetryState();
+  }
+
   #syncTelemetryState() {
     const button = this.#element?.querySelector('[data-action="toggle-telemetry"]');
     const label = this.#element?.querySelector("[data-telemetry-label]");
@@ -113,5 +137,11 @@ export class SettingsGUI {
     button.dataset.primed = String(primed);
     label.textContent = primed ? "Telemetry Primed" : "Telemetry Unprimed";
     state.textContent = primed ? "PRIMED" : "UNPRIMED";
+
+    const downloadButton = this.#element?.querySelector('[data-action="download-telemetry"]');
+    const downloadState = this.#element?.querySelector("[data-telemetry-download-state]");
+    const hasLatestRun = Boolean(getLatestTelemetryRun());
+    if (downloadButton) downloadButton.disabled = !hasLatestRun;
+    if (downloadState) downloadState.textContent = hasLatestRun ? "READY" : "EMPTY";
   }
 }

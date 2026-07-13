@@ -1,6 +1,5 @@
 const TELEMETRY_STORAGE_KEY = "endlessMatrixTelemetryRuns";
 const TELEMETRY_OPT_IN_KEY = "endlessMatrixTelemetryOptIn";
-const MAX_STORED_RUNS = 20;
 const MAX_SECTION_SAMPLES = 24;
 const HEALTHY_VALUE = 100;
 const BATTLE_TYPES = ["ground", "air", "cloaked"];
@@ -418,17 +417,23 @@ export class RunTelemetry {
   }
 }
 
-export function getStoredTelemetryRuns() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(TELEMETRY_STORAGE_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 export function getLatestTelemetryRun() {
-  return getStoredTelemetryRuns()[0] || window.__ENDLESS_MATRIX_LAST_TELEMETRY__ || null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(TELEMETRY_STORAGE_KEY) || "null");
+    if (Array.isArray(parsed)) {
+      const latest = parsed[0] || null;
+      try {
+        if (latest) window.localStorage.setItem(TELEMETRY_STORAGE_KEY, JSON.stringify(latest));
+        else window.localStorage.removeItem(TELEMETRY_STORAGE_KEY);
+      } catch {
+        // The newest run is still usable for this session if migration fails.
+      }
+      return latest || window.__ENDLESS_MATRIX_LAST_TELEMETRY__ || null;
+    }
+    return parsed || window.__ENDLESS_MATRIX_LAST_TELEMETRY__ || null;
+  } catch {
+    return window.__ENDLESS_MATRIX_LAST_TELEMETRY__ || null;
+  }
 }
 
 export function downloadLatestTelemetryRun() {
@@ -881,9 +886,7 @@ function towerSnapshot(tower) {
 }
 
 function storeTelemetryRun(payload) {
-  const runs = getStoredTelemetryRuns();
-  runs.unshift(payload);
-  window.localStorage.setItem(TELEMETRY_STORAGE_KEY, JSON.stringify(runs.slice(0, MAX_STORED_RUNS)));
+  window.localStorage.setItem(TELEMETRY_STORAGE_KEY, JSON.stringify(payload));
 }
 
 function sum(items, selector) {
